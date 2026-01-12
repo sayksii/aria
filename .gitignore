@@ -68,3 +68,7 @@ Desktop.ini
 *.tmp
 *.temp
 *.bak
+
+# PyInstaller
+*.spec
+release/
