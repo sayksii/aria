@@ -6,7 +6,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Windows">
-  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">
+  <img src="https://img.shields.io/badge/license-GPLv3-blue.svg" alt="GPLv3 License">
 </p>
 
 **Universal Real-time AI Subtitles for Windows** - Capture and transcribe any audio playing on your system with AI-powered speech recognition.
@@ -22,44 +22,31 @@
 - 🎨 **Customizable Overlay**: Draggable subtitle window with adjustable position
 - 🌐 **Multilingual UI**: English, Traditional Chinese, Simplified Chinese
 
-## 📦 Quick Start (Recommended)
+## 📦 Download
 
-### Download Pre-built Release
+### Choose Your Version
 
-1. Go to [Releases](https://github.com/sayksii/aria/releases)
-2. Download the latest `ARIA-vX.X.X-windows.zip`
-3. Extract to any folder
-4. Double-click **`ARIA.vbs`** (silent) or **`ARIA.bat`** (with console)
+| Version | Size | Description | Download |
+|---------|------|-------------|----------|
+| **Lite** | ~6 GB | No models included. Download models in-app. | [Google Drive](https://drive.google.com/file/d/1hCrXqGmDe46bnF5dfyAIxSzVf6P8rTj5/view?usp=sharing) |
+| **Full** | ~12 GB | All models pre-installed. Ready to use. | [Google Drive](https://drive.google.com/) |
 
-> **Note**: First launch will download AI models (~500MB-1.5GB depending on features used).
+### Included Models (Full Version)
 
-### First Time Setup
+| Model | Type | Size | Languages |
+|-------|------|------|-----------|
+| Whisper Large-v3 | Precise | 3 GB | All |
+| Sherpa-ONNX Bilingual | Realtime | 500 MB | Chinese, English |
+| Vosk Japanese | Realtime | 1 GB | Japanese |
+| NLLB Translation | Translation | 1.2 GB | Many |
 
-1. Launch ARIA
-2. Click **Manage Models** to download required models
-3. Select recognition mode (Precise or Realtime)
-4. Choose the language you want to recognize
+## 🚀 Quick Start
+
+1. Download and extract the ZIP file
+2. Double-click **`ARIA.vbs`** (silent) or **`ARIA.bat`** (with console)
+3. If using Lite version, click **Manage Models** to download required models
+4. Select recognition mode and language
 5. Click **Start Subtitles**
-
-## 🛠️ Development Installation
-
-For developers who want to modify the source code:
-
-```bash
-# Clone the repository
-git clone https://github.com/sayksii/aria.git
-cd aria
-
-# Create virtual environment
-python -m venv venv
-venv\Scripts\activate
-
-# Install the package
-pip install -e .
-
-# Run
-python -m realtime_subtitles.ui.app
-```
 
 ## ⚙️ Configuration
 
@@ -85,20 +72,38 @@ python -m realtime_subtitles.ui.app
 - **Google Cloud**: Fast, accurate, requires internet
 - **NLLB Local**: Offline, runs locally using Meta's NLLB model
 
-## 📁 Release Package Structure
+## 📁 Package Structure
 
 ```
 ARIA/
 ├── python/          # Embedded Python (no installation needed)
 ├── src/             # Source code
-├── models/          # AI models (downloaded on first use)
+├── models/          # AI models (Lite: empty, Full: pre-installed)
 ├── ARIA.bat         # Launcher with console window
 └── ARIA.vbs         # Silent launcher (recommended)
 ```
 
+## 🛠️ For Developers
+
+```bash
+# Clone the repository
+git clone https://github.com/sayksii/aria.git
+cd aria
+
+# Create virtual environment
+python -m venv venv
+venv\Scripts\activate
+
+# Install the package
+pip install -e .
+
+# Run
+python -m realtime_subtitles.ui.app
+```
+
 ## 📝 License
 
-MIT License - see [LICENSE](LICENSE) for details.
+This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 

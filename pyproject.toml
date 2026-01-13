@@ -3,7 +3,7 @@ name = "aria-subtitles"
 version = "0.1.0"
 description = "ARIA - AI Realtime Intelligent Audio | Universal Real-time AI Subtitles"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "GPL-3.0" }
 requires-python = ">=3.10"
 authors = [
     { name = "sayksii", email = "mark42967151@gmail.com" }
@@ -12,7 +12,7 @@ keywords = ["subtitle", "speech-recognition", "whisper", "real-time", "accessibi
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
