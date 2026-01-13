@@ -5,7 +5,6 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Windows">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">
 </p>
@@ -23,47 +22,44 @@
 - 🎨 **Customizable Overlay**: Draggable subtitle window with adjustable position
 - 🌐 **Multilingual UI**: English, Traditional Chinese, Simplified Chinese
 
-## 📦 Installation
+## 📦 Quick Start (Recommended)
 
-### Prerequisites
-- Python 3.10 or higher
-- Windows 10/11
+### Download Pre-built Release
 
-### Install from source
+1. Go to [Releases](https://github.com/sayksii/aria/releases)
+2. Download the latest `ARIA-vX.X.X-windows.zip`
+3. Extract to any folder
+4. Double-click **`ARIA.vbs`** (silent) or **`ARIA.bat`** (with console)
+
+> **Note**: First launch will download AI models (~500MB-1.5GB depending on features used).
+
+### First Time Setup
+
+1. Launch ARIA
+2. Click **Manage Models** to download required models
+3. Select recognition mode (Precise or Realtime)
+4. Choose the language you want to recognize
+5. Click **Start Subtitles**
+
+## 🛠️ Development Installation
+
+For developers who want to modify the source code:
 
 ```bash
 # Clone the repository
 git clone https://github.com/sayksii/aria.git
 cd aria
 
-# Create virtual environment (recommended)
+# Create virtual environment
 python -m venv venv
 venv\Scripts\activate
 
 # Install the package
 pip install -e .
-```
 
-## 🚀 Usage
-
-### Launch the GUI
-
-```bash
+# Run
 python -m realtime_subtitles.ui.app
 ```
-
-Or after installation:
-```bash
-aria
-```
-
-### Quick Start
-
-1. Launch ARIA
-2. Select recognition mode (Precise or Realtime)
-3. Choose the language you want to recognize
-4. Click **Start Subtitles**
-5. Drag the subtitle overlay to your preferred position
 
 ## ⚙️ Configuration
 
@@ -89,43 +85,27 @@ aria
 - **Google Cloud**: Fast, accurate, requires internet
 - **NLLB Local**: Offline, runs locally using Meta's NLLB model
 
-## 🏗️ Project Structure
+## 📁 Release Package Structure
 
 ```
-aria/
-├── src/realtime_subtitles/
-│   ├── audio/          # Audio capture (WASAPI loopback)
-│   ├── recognition/    # Speech recognition engines
-│   ├── translation/    # Translation engines
-│   ├── i18n/           # Internationalization
-│   └── ui/             # GUI components
-├── models/             # Downloaded AI models (gitignored)
-└── pyproject.toml
-```
-
-## 🔧 Development
-
-```bash
-# Install with dev dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Lint code
-ruff check src/
+ARIA/
+├── python/          # Embedded Python (no installation needed)
+├── src/             # Source code
+├── models/          # AI models (downloaded on first use)
+├── ARIA.bat         # Launcher with console window
+└── ARIA.vbs         # Silent launcher (recommended)
 ```
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
-- [Faster Whisper](https://github.com/SYSTRAN/faster-whisper) - Fast Whisper inference
-- [Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx) - Streaming speech recognition
-- [Vosk](https://alphacephei.com/vosk/) - Offline speech recognition
-- [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter) - Modern UI framework
+- [Faster Whisper](https://github.com/SYSTRAN/faster-whisper)
+- [Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx)
+- [Vosk](https://alphacephei.com/vosk/)
+- [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter)
 
 ## 📧 Contact
 
