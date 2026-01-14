@@ -14,6 +14,7 @@ from .model_manager_window import show_model_manager, show_download_dialog
 from ..pipeline import RealtimePipeline, SubtitleEvent
 from ..vosk_pipeline import VoskStreamingPipeline
 from ..model_manager import ModelManager, ModelType, ModelStatus
+from ..i18n import t
 from tkinter import messagebox
 
 
@@ -67,8 +68,8 @@ class App:
         # Show notification
         if self._tray:
             self._tray.show_notification(
-                "程式已最小化到系統托盤",
-                "右鍵點擊托盤圖示可以控制字幕或退出程式"
+                t("tray_minimized_title"),
+                t("tray_minimized_msg")
             )
     
     def _on_tray_show(self) -> None:
@@ -209,12 +210,12 @@ class App:
         """Called when pipeline has started."""
         self._settings_window.show_running()
         self._overlay.show()
-        self._overlay.update_subtitle("字幕已啟動，等待語音...", "")
+        self._overlay.update_subtitle(t("overlay_waiting"), "")
         
         # Show translation overlay if enabled
         if self._translation_overlay:
             self._translation_overlay.show()
-            self._translation_overlay.update_subtitle("等待翻譯...", "")
+            self._translation_overlay.update_subtitle(t("overlay_translation_waiting"), "")
         
         # Update tray status
         if self._tray:
@@ -352,11 +353,11 @@ class App:
         if not missing_models:
             return True  # All models are available
         
-        # Build message for missing models
-        model_list = "\n".join([f"  • {m.name} ({m.get_size_display()})" for m in missing_models])
+        # Build message for missing models (translate model names)
+        model_list = "\n".join([f"  • {t(m.name)} ({m.get_size_display()})" for m in missing_models])
         result = messagebox.askyesno(
-            "模型未下載",
-            f"以下模型尚未下載:\n\n{model_list}\n\n是否立即下載？",
+            t("model_not_downloaded_title"),
+            t("model_not_downloaded_msg").format(models=model_list),
         )
         
         if result:
@@ -390,7 +391,7 @@ def run_app() -> None:
                 root.withdraw()
                 messagebox.showwarning(
                     "ARIA",
-                    "ARIA 已在運行中。\nARIA is already running."
+                    t("already_running")
                 )
                 root.destroy()
                 sys.exit(0)

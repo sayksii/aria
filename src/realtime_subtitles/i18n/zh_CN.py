@@ -3,7 +3,7 @@
 TRANSLATIONS = {
     # Window title
     "window_title": "ARIA",
-    "subtitle": "全域即时 AI 字幕 - 任何声音都能字幕化",
+    "subtitle": "实时语音转文字工具",
     
     # Language selector
     "language": "语言",
@@ -106,10 +106,40 @@ TRANSLATIONS = {
     # Misc
     "yes": "是",
     "no": "否",
-    "restart_required": "语言变更将在重启程序后生效",
+    "restart_required": "语言更改将在重启程序后生效",
+    "already_running": "ARIA 已在运行中。\nARIA is already running.",
     
-    # Model names
+    # Tray notifications
+    "tray_minimized_title": "程序已最小化到系统托盘",
+    "tray_minimized_msg": "右键点击托盘图标可以控制字幕或退出程序",
+    
+    # Model names (for dropdown)
     "model_large_v3": "Large-v3 ⭐ (最准)",
     "model_large_v3_turbo": "Large-v3-turbo (快速高准)",
     "model_medium": "Medium (平衡)",
+    
+    # Model manager - model names
+    "model_name_whisper_large_v3": "Whisper Large-v3",
+    "model_name_whisper_large_v3_turbo": "Whisper Large-v3 Turbo",
+    "model_name_whisper_medium": "Whisper Medium",
+    "model_name_sherpa_zh_en": "Sherpa 中/英文",
+    "model_name_vosk_ja": "Vosk 日文",
+    "model_name_nllb": "NLLB 翻译模型",
+    
+    # Model manager - descriptions
+    "model_desc_whisper_large_v3": "最高准确度，适合精准模式",
+    "model_desc_whisper_large_v3_turbo": "快速且准确",
+    "model_desc_whisper_medium": "中等大小，平衡效能与准确度",
+    "model_desc_sherpa_zh_en": "实时中英文识别",
+    "model_desc_vosk_ja": "实时日文识别",
+    "model_desc_nllb": "离线多语言翻译 (600M 版本)",
+    
+    # Download status messages
+    "download_status_downloading": "正在下载 {name}...",
+    "download_status_verifying": "验证中...",
+    "download_status_extracting": "解压缩中...",
+    "download_status_complete": "完成",
+    "download_status_error": "错误: {error}",
+    "download_status_progress": "下载中... {downloaded}/{total}MB",
+    "download_status_install_hf": "请安装 huggingface_hub: pip install huggingface_hub",
 }

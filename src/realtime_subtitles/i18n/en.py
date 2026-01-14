@@ -3,7 +3,7 @@
 TRANSLATIONS = {
     # Window title
     "window_title": "ARIA",
-    "subtitle": "AI Realtime Intelligent Audio - Any Audio to Text",
+    "subtitle": "Real-time Speech-to-Text Tool",
     
     # Language selector
     "language": "Language",
@@ -107,9 +107,39 @@ TRANSLATIONS = {
     "yes": "Yes",
     "no": "No",
     "restart_required": "Language change will take effect after restart",
+    "already_running": "ARIA is already running.",
     
-    # Model names
+    # Tray notifications
+    "tray_minimized_title": "Minimized to system tray",
+    "tray_minimized_msg": "Right-click the tray icon to control subtitles or quit",
+    
+    # Model names (for dropdown)
     "model_large_v3": "Large-v3 ⭐ (Best)",
     "model_large_v3_turbo": "Large-v3-turbo (Fast & Accurate)",
     "model_medium": "Medium (Balanced)",
+    
+    # Model manager - model names
+    "model_name_whisper_large_v3": "Whisper Large-v3",
+    "model_name_whisper_large_v3_turbo": "Whisper Large-v3 Turbo",
+    "model_name_whisper_medium": "Whisper Medium",
+    "model_name_sherpa_zh_en": "Sherpa Chinese/English",
+    "model_name_vosk_ja": "Vosk Japanese",
+    "model_name_nllb": "NLLB Translation",
+    
+    # Model manager - descriptions
+    "model_desc_whisper_large_v3": "Highest accuracy, recommended for precise mode",
+    "model_desc_whisper_large_v3_turbo": "Fast and accurate",
+    "model_desc_whisper_medium": "Medium size, balanced performance and accuracy",
+    "model_desc_sherpa_zh_en": "Real-time Chinese/English recognition",
+    "model_desc_vosk_ja": "Real-time Japanese recognition",
+    "model_desc_nllb": "Offline multilingual translation (600M)",
+    
+    # Download status messages
+    "download_status_downloading": "Downloading {name}...",
+    "download_status_verifying": "Verifying...",
+    "download_status_extracting": "Extracting...",
+    "download_status_complete": "Complete",
+    "download_status_error": "Error: {error}",
+    "download_status_progress": "Downloading... {downloaded}/{total}MB",
+    "download_status_install_hf": "Please install huggingface_hub: pip install huggingface_hub",
 }

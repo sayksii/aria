@@ -211,7 +211,7 @@ class SettingsWindow(ctk.CTk):
         model_row.pack(fill="x", padx=18, pady=(0, 10))
         
         ctk.CTkLabel(model_row, text=t("model") + ":", width=50, anchor="w").pack(side="left")
-        self.model_var = ctk.StringVar(value="Large-v3 ⭐ (最準)")
+        self.model_var = ctk.StringVar(value=t("model_large_v3"))
         self.model_dropdown = ctk.CTkComboBox(
             model_row,
             values=[m[0] for m in self.MODELS],
@@ -226,7 +226,7 @@ class SettingsWindow(ctk.CTk):
         lang_row.pack(fill="x", padx=18, pady=(0, 15))
         
         ctk.CTkLabel(lang_row, text=t("lang") + ":", width=50, anchor="w").pack(side="left")
-        self.lang_var = ctk.StringVar(value="自動偵測")
+        self.lang_var = ctk.StringVar(value=t("auto_detect"))
         self.lang_dropdown = ctk.CTkComboBox(
             lang_row,
             values=[l[0] for l in self.LANGUAGES],
@@ -446,7 +446,7 @@ class SettingsWindow(ctk.CTk):
             self.vad_desc.configure(text=t("vad_desc_precise"), text_color="#888888")
             # Restore Whisper models
             self.model_dropdown.configure(values=[m[0] for m in self.MODELS])
-            self.model_var.set("Large-v3 ⭐ (最準)")
+            self.model_var.set(t("model_large_v3"))
             # Restore full language options
             self.lang_dropdown.configure(values=[l[0] for l in self.LANGUAGES])
         else:  # Realtime (streaming with Sherpa/Vosk)

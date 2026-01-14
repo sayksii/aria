@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Optional, Callable, Dict, List
 import threading
 
+from ..i18n import t
+
 
 class ModelType(Enum):
     """Types of models supported."""
@@ -48,62 +50,63 @@ class ModelInfo:
 
 
 # Registry of all supported models
+# Note: name_key and desc_key are i18n translation keys
 SUPPORTED_MODELS: List[ModelInfo] = [
     # Whisper models (via faster-whisper / CTranslate2)
     ModelInfo(
         id="whisper-large-v3",
-        name="Whisper Large-v3",
+        name="model_name_whisper_large_v3",  # Translation key
         model_type=ModelType.WHISPER,
         size_mb=3000,
-        description="最高準確度，適合精準模式",
+        description="model_desc_whisper_large_v3",  # Translation key
         hf_repo="Systran/faster-whisper-large-v3",
         local_folder="faster-whisper-large-v3",
     ),
     ModelInfo(
         id="whisper-large-v3-turbo",
-        name="Whisper Large-v3 Turbo",
+        name="model_name_whisper_large_v3_turbo",
         model_type=ModelType.WHISPER,
         size_mb=1500,
-        description="快速且準確",
+        description="model_desc_whisper_large_v3_turbo",
         hf_repo="deepdml/faster-whisper-large-v3-turbo-ct2",
         local_folder="faster-whisper-large-v3-turbo-ct2",
     ),
     ModelInfo(
         id="whisper-medium",
-        name="Whisper Medium",
+        name="model_name_whisper_medium",
         model_type=ModelType.WHISPER,
         size_mb=1500,
-        description="中等大小，平衡效能與準確度",
+        description="model_desc_whisper_medium",
         hf_repo="Systran/faster-whisper-medium",
         local_folder="faster-whisper-medium",
     ),
     # Sherpa-ONNX models
     ModelInfo(
         id="sherpa-onnx-streaming-paraformer-zh",
-        name="Sherpa 中/英文",
+        name="model_name_sherpa_zh_en",
         model_type=ModelType.SHERPA,
         size_mb=500,
-        description="實時中英文辨識",
+        description="model_desc_sherpa_zh_en",
         download_url="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20.tar.bz2",
         local_folder="sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20",
     ),
     # Vosk models
     ModelInfo(
         id="vosk-model-ja",
-        name="Vosk 日文",
+        name="model_name_vosk_ja",
         model_type=ModelType.VOSK,
         size_mb=1000,
-        description="實時日文辨識",
+        description="model_desc_vosk_ja",
         download_url="https://alphacephei.com/vosk/models/vosk-model-ja-0.22.zip",
         local_folder="vosk-model-ja-0.22",
     ),
     # NLLB translation model
     ModelInfo(
         id="nllb-200-distilled-600M",
-        name="NLLB 翻譯模型",
+        name="model_name_nllb",
         model_type=ModelType.NLLB,
         size_mb=600,
-        description="離線多語言翻譯 (600M 版本)",
+        description="model_desc_nllb",
         hf_repo="JustFrederik/nllb-200-distilled-600M-ct2-int8",
         local_folder="nllb-200-distilled-600M-ct2-int8",
     ),
@@ -210,11 +213,11 @@ class ModelManager:
             
             self._download_progress[model.id] = 1.0
             if callback:
-                callback(model.id, 1.0, "完成")
+                callback(model.id, 1.0, t("download_status_complete"))
         except Exception as e:
             print(f"[ModelManager] Download error: {e}")
             if callback:
-                callback(model.id, -1, f"錯誤: {e}")
+                callback(model.id, -1, t("download_status_error").format(error=str(e)))
         finally:
             if model.id in self._download_threads:
                 del self._download_threads[model.id]
@@ -228,12 +231,12 @@ class ModelManager:
         try:
             from huggingface_hub import snapshot_download
         except ImportError:
-            raise RuntimeError("請安裝 huggingface_hub: pip install huggingface_hub")
+            raise RuntimeError(t("download_status_install_hf"))
         
         model_path = self.get_model_path(model)
         
         if callback:
-            callback(model.id, 0.1, f"正在下載 {model.name}...")
+            callback(model.id, 0.1, t("download_status_downloading").format(name=t(model.name)))
         
         # Disable tqdm progress bars to avoid threading issues
         import os
@@ -247,7 +250,7 @@ class ModelManager:
         )
         
         if callback:
-            callback(model.id, 0.9, "驗證中...")
+            callback(model.id, 0.9, t("download_status_verifying"))
     
     def _download_from_url(
         self,
@@ -264,7 +267,7 @@ class ModelManager:
         url = model.download_url
         
         if callback:
-            callback(model.id, 0.05, f"正在下載 {model.name}...")
+            callback(model.id, 0.05, t("download_status_downloading").format(name=t(model.name)))
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=self._get_archive_suffix(url)) as tmp:
             tmp_path = tmp.name
@@ -276,12 +279,12 @@ class ModelManager:
                     if callback:
                         downloaded_mb = block_num * block_size / 1024 / 1024
                         total_mb = total_size / 1024 / 1024
-                        callback(model.id, progress, f"下載中... {downloaded_mb:.0f}/{total_mb:.0f}MB")
+                        callback(model.id, progress, t("download_status_progress").format(downloaded=f"{downloaded_mb:.0f}", total=f"{total_mb:.0f}"))
             
             urllib.request.urlretrieve(url, tmp_path, report_progress)
         
         if callback:
-            callback(model.id, 0.85, "解壓縮中...")
+            callback(model.id, 0.85, t("download_status_extracting"))
         
         model_path.mkdir(parents=True, exist_ok=True)
         
@@ -296,7 +299,7 @@ class ModelManager:
         
         # Notify completion
         if callback:
-            callback(model.id, 1.0, "完成")
+            callback(model.id, 1.0, t("download_status_complete"))
     
     @staticmethod
     def _get_archive_suffix(url: str) -> str:

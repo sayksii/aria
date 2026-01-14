@@ -7,6 +7,7 @@ from typing import Optional, Dict
 import threading
 
 from ..model_manager import ModelManager, ModelInfo, ModelType, ModelStatus
+from ..i18n import t
 
 
 class ModelRow(ctk.CTkFrame):
@@ -45,7 +46,7 @@ class ModelRow(ctk.CTkFrame):
         
         self.name_label = ctk.CTkLabel(
             info_frame,
-            text=self.model.name,
+            text=t(self.model.name),  # Translate model name
             font=ctk.CTkFont(size=13, weight="bold"),
             anchor="w",
         )
@@ -53,7 +54,7 @@ class ModelRow(ctk.CTkFrame):
         
         self.desc_label = ctk.CTkLabel(
             info_frame,
-            text=self.model.description,
+            text=t(self.model.description),  # Translate description
             font=ctk.CTkFont(size=11),
             text_color="#888888",
             anchor="w",
@@ -88,7 +89,7 @@ class ModelRow(ctk.CTkFrame):
         # Action button
         self.action_button = ctk.CTkButton(
             self,
-            text="下載",
+            text=t("download"),
             width=70,
             height=28,
             command=self._on_action,
@@ -102,18 +103,18 @@ class ModelRow(ctk.CTkFrame):
             
             if status == ModelStatus.DOWNLOADED:
                 self.status_label.configure(text="✅")
-                self.action_button.configure(text="刪除", fg_color="#8B0000", hover_color="#A52A2A", state="normal")
+                self.action_button.configure(text=t("delete"), fg_color="#8B0000", hover_color="#A52A2A", state="normal")
                 self.progress_bar.pack_forget()
                 self.progress_text.pack_forget()
             elif status == ModelStatus.DOWNLOADING:
                 self.status_label.configure(text="⏳")
-                self.action_button.configure(text="下載中...", state="disabled")
+                self.action_button.configure(text=t("downloading"), state="disabled")
                 self.progress_bar.pack(side="left", padx=5)
                 self.progress_text.pack(side="left", padx=5)
             else:  # NOT_DOWNLOADED
                 self.status_label.configure(text="⬇️")
                 self.action_button.configure(
-                    text="下載",
+                    text=t("download"),
                     fg_color=["#3B8ED0", "#1F6AA5"],
                     hover_color=["#36719F", "#144870"],
                     state="normal",
@@ -154,7 +155,7 @@ class ModelRow(ctk.CTkFrame):
             if progress < 0:
                 # Error
                 self.progress_text.configure(text=status_text, text_color="red")
-                self.action_button.configure(state="normal", text="重試")
+                self.action_button.configure(state="normal", text=t("retry"))
             elif progress >= 1.0:
                 # Complete
                 self._update_status()
@@ -174,7 +175,7 @@ class ModelManagerWindow(ctk.CTkToplevel):
     def __init__(self, master=None):
         super().__init__(master)
         
-        self.title("模型管理")
+        self.title(t("model_manager_title"))
         self.geometry("650x500")
         self.resizable(True, True)
         
@@ -202,8 +203,8 @@ class ModelManagerWindow(ctk.CTkToplevel):
             if self.manager.get_status(model) == ModelStatus.DOWNLOADING:
                 from tkinter import messagebox
                 result = messagebox.askyesno(
-                    "下載進行中",
-                    "模型正在下載中，關閉視窗將取消下載進度。\n\n確定要取消嗎？",
+                    t("download_in_progress"),
+                    t("download_cancel_confirm"),
                     parent=self,
                 )
                 if not result:
@@ -224,7 +225,7 @@ class ModelManagerWindow(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             header,
-            text="📦 模型管理",
+            text="📦 " + t("model_manager_title"),
             font=ctk.CTkFont(size=20, weight="bold"),
         ).pack(side="left")
         
@@ -234,7 +235,7 @@ class ModelManagerWindow(ctk.CTkToplevel):
         
         ctk.CTkLabel(
             path_frame,
-            text="存放位置:",
+            text=t("model_path") + ":",
             font=ctk.CTkFont(size=12),
         ).pack(side="left", padx=(15, 5), pady=10)
         
@@ -250,7 +251,7 @@ class ModelManagerWindow(ctk.CTkToplevel):
         # Open folder button
         open_btn = ctk.CTkButton(
             path_frame,
-            text="📂 開啟",
+            text=t("open_folder"),
             width=70,
             height=28,
             font=ctk.CTkFont(size=12),
@@ -263,9 +264,9 @@ class ModelManagerWindow(ctk.CTkToplevel):
         self.scroll_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         
         # Model sections
-        self._create_model_section("🎤 語音辨識模型", ModelType.WHISPER)
-        self._create_model_section("⚡ 實時辨識模型", [ModelType.SHERPA, ModelType.VOSK])
-        self._create_model_section("🌐 翻譯模型", ModelType.NLLB)
+        self._create_model_section(t("recognition_models"), ModelType.WHISPER)
+        self._create_model_section(t("realtime_models"), [ModelType.SHERPA, ModelType.VOSK])
+        self._create_model_section(t("translation_models"), ModelType.NLLB)
     
     def _create_model_section(self, title: str, model_types):
         """Create a section for a group of models."""
@@ -327,7 +328,7 @@ class ModelDownloadDialog(ctk.CTkToplevel):
     def __init__(self, master, models_to_download: list, on_complete: Optional[callable] = None):
         super().__init__(master)
         
-        self.title("下載模型")
+        self.title(t("download_title"))
         self.geometry("450x350")
         self.resizable(False, False)
         
@@ -360,7 +361,7 @@ class ModelDownloadDialog(ctk.CTkToplevel):
         # Header
         ctk.CTkLabel(
             self,
-            text="📥 正在下載模型...",
+            text=t("downloading_models"),
             font=ctk.CTkFont(size=18, weight="bold"),
         ).pack(pady=(20, 15))
         
@@ -372,7 +373,7 @@ class ModelDownloadDialog(ctk.CTkToplevel):
             # Model name
             ctk.CTkLabel(
                 frame,
-                text=f"{model.name} ({model.get_size_display()})",
+                text=f"{t(model.name)} ({model.get_size_display()})",
                 font=ctk.CTkFont(size=13, weight="bold"),
             ).pack(anchor="w", padx=15, pady=(10, 5))
             
@@ -395,7 +396,7 @@ class ModelDownloadDialog(ctk.CTkToplevel):
         # Close button (hidden until complete)
         self.close_btn = ctk.CTkButton(
             self,
-            text="下載中...",
+            text=t("downloading"),
             width=100,
             state="disabled",
             command=self._on_close,
@@ -441,7 +442,7 @@ class ModelDownloadDialog(ctk.CTkToplevel):
             return
         try:
             if self._completed_count >= len(self.models_to_download):
-                self.close_btn.configure(text="完成", state="normal")
+                self.close_btn.configure(text=t("complete"), state="normal")
         except Exception:
             pass
     
@@ -451,8 +452,8 @@ class ModelDownloadDialog(ctk.CTkToplevel):
         if self._completed_count < len(self.models_to_download):
             from tkinter import messagebox
             result = messagebox.askyesno(
-                "下載進行中",
-                "模型正在下載中，關閉視窗將取消下載進度。\n\n確定要取消嗎？",
+                t("download_in_progress"),
+                t("download_cancel_confirm"),
                 parent=self,
             )
             if not result:
