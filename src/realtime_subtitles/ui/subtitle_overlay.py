@@ -34,17 +34,19 @@ class SubtitleOverlay(ctk.CTkToplevel):
     - Positioned at bottom of screen
     """
     
-    def __init__(self, parent: Optional[ctk.CTk] = None, position_key: str = "overlay"):
+    def __init__(self, parent: Optional[ctk.CTk] = None, position_key: str = "overlay", on_close: Optional[callable] = None):
         """Initialize the overlay window.
         
         Args:
             parent: Parent window
             position_key: Key prefix for saving position (e.g., 'overlay' or 'translation_overlay')
+            on_close: Callback when window is closed (e.g., from taskbar)
         """
         super().__init__(parent)
         
         # Position key for separate storage
         self._position_key = position_key
+        self._on_close_callback = on_close
         
         # Window setup
         self.title("Subtitles")
@@ -79,12 +81,21 @@ class SubtitleOverlay(ctk.CTkToplevel):
         self._setup_drag()
         self._setup_resize()
         
+        # Handle window close (from taskbar)
+        self.protocol("WM_DELETE_WINDOW", self._on_window_close)
+        
         # Current subtitle text
         self._current_text = ""
         self._language = ""
         
         # Position after window is ready
         self.after(100, self._position_window)
+    
+    def _on_window_close(self) -> None:
+        """Handle window close event (e.g., from taskbar)."""
+        if self._on_close_callback:
+            self._on_close_callback()
+        self.withdraw()  # Hide instead of destroy
     
     def _position_window(self) -> None:
         """Position the window at the saved position or default middle-lower screen."""
@@ -94,8 +105,16 @@ class SubtitleOverlay(ctk.CTkToplevel):
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         
-        # Dynamic window width (40% of screen width for better fit)
-        self._window_width = int(screen_width * 0.4)
+        # Dynamic window width - scale based on resolution
+        # 4K (3840+): 40%, 1440p (2560): 55%, 1080p (1920): 70%
+        if screen_width >= 3840:
+            width_ratio = 0.40  # 4K
+        elif screen_width >= 2560:
+            width_ratio = 0.55  # 1440p
+        else:
+            width_ratio = 0.70  # 1080p and below
+        
+        self._window_width = int(screen_width * width_ratio)
         
         # Try to load saved position
         settings = get_settings_manager()

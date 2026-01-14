@@ -139,11 +139,11 @@ class App:
         
         # Create overlay (with multiline support for streaming mode)
         if self._overlay is None:
-            self._overlay = SubtitleOverlay(self._settings_window)
+            self._overlay = SubtitleOverlay(self._settings_window, on_close=self._stop)
         
         # Create separate translation overlay if enabled
         if self._enable_translation and self._translation_overlay is None:
-            self._translation_overlay = SubtitleOverlay(self._settings_window, position_key="translation_overlay")
+            self._translation_overlay = SubtitleOverlay(self._settings_window, position_key="translation_overlay", on_close=self._stop)
             self._translation_overlay.set_translation_mode(True)  # Green text, positioned above
         elif not self._enable_translation and self._translation_overlay is not None:
             # Translation disabled - destroy existing overlay

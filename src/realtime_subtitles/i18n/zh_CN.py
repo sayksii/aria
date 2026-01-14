@@ -72,7 +72,7 @@ TRANSLATIONS = {
     "download_title": "下载模型",
     "downloading_models": "📥 正在下载模型...",
     "download_in_progress": "下载进行中",
-    "download_cancel_confirm": "模型正在下载中，关闭窗口将取消下载进度。\n\n确定要取消吗？",
+    "download_cancel_confirm": "取消下载将删除已下载的部分并关闭 ARIA。\n\n确定要取消吗？",
     
     # Model not downloaded dialog
     "model_not_downloaded_title": "模型未下载",

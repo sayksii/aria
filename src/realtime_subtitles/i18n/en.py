@@ -72,7 +72,7 @@ TRANSLATIONS = {
     "download_title": "Download Model",
     "downloading_models": "📥 Downloading models...",
     "download_in_progress": "Download in Progress",
-    "download_cancel_confirm": "Model is being downloaded. Closing will cancel the download.\n\nAre you sure?",
+    "download_cancel_confirm": "Cancelling will delete the partial download and close ARIA.\n\nAre you sure you want to cancel?",
     
     # Model not downloaded dialog
     "model_not_downloaded_title": "Model Not Downloaded",

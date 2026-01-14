@@ -458,6 +458,38 @@ class ModelDownloadDialog(ctk.CTkToplevel):
             )
             if not result:
                 return  # User chose not to close
+            
+            # User confirmed cancel - delete partial downloaded models and force quit
+            import os
+            import shutil
+            
+            for model in self.models_to_download:
+                # Delete from models directory
+                model_path = self.manager.get_model_path(model)
+                if model_path and model_path.exists():
+                    try:
+                        if model_path.is_dir():
+                            shutil.rmtree(model_path)
+                        else:
+                            os.remove(model_path)
+                    except Exception:
+                        pass
+                
+                # Also try to clear HuggingFace cache for this model
+                if model.hf_repo:
+                    try:
+                        hf_cache = os.path.expanduser("~/.cache/huggingface/hub")
+                        repo_name = model.hf_repo.replace("/", "--")
+                        for entry in os.listdir(hf_cache):
+                            if repo_name in entry:
+                                cache_path = os.path.join(hf_cache, entry)
+                                if os.path.isdir(cache_path):
+                                    shutil.rmtree(cache_path)
+                    except Exception:
+                        pass
+            
+            # Force exit - os._exit stops all threads immediately
+            os._exit(0)
         
         self._destroyed = True
         try:
