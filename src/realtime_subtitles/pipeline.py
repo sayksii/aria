@@ -15,6 +15,7 @@ import numpy as np
 from .audio.capture import AudioCapture
 from .audio.buffer import StreamingAudioBuffer, SimpleAudioBuffer
 from .transcription.whisper_transcriber import WhisperTranscriber, TranscriptionResult
+from .logger import info, debug, warning, error
 
 # Translation support (optional)
 try:
@@ -65,7 +66,7 @@ class RealtimePipeline:
         language: Optional[str] = None,
         on_subtitle: Optional[Callable[[SubtitleEvent], None]] = None,
         use_vad: bool = True,
-        vad_silence_ms: int = 300,
+        vad_silence_ms: int = 100,
         min_segment_duration: float = 1.0,
         max_segment_duration: float = 10.0,
         # Translation settings
@@ -110,7 +111,7 @@ class RealtimePipeline:
                     target_language=target_language,
                 )
             except Exception as e:
-                print(f"[Pipeline] Translation init failed: {e}")
+                warning(f"Pipeline: Translation init failed: {e}")
                 self._translator = None
         
         # Buffer - choose based on VAD setting
@@ -134,7 +135,7 @@ class RealtimePipeline:
         self._transcription_thread: Optional[threading.Thread] = None
         
         trans_status = "enabled" if self._translator else "disabled"
-        print(f"[Pipeline] Initialized: model={model}, language={language or 'auto'}, VAD={use_vad}, translation={trans_status}")
+        info(f"Pipeline: Initialized model={model}, language={language or 'auto'}, VAD={use_vad}, translation={trans_status}")
     
     def _default_callback(self, event: SubtitleEvent) -> None:
         """Default subtitle callback - prints to console."""
@@ -146,6 +147,7 @@ class RealtimePipeline:
     
     def _on_audio_segment(self, audio: np.ndarray) -> None:
         """Callback from Buffer - queues for transcription."""
+        debug(f"Pipeline: Audio segment received ({len(audio)/16000:.1f}s)")
         self._transcription_queue.put(audio)
     
     def _transcription_loop(self) -> None:
@@ -174,9 +176,9 @@ class RealtimePipeline:
                         try:
                             translated = self._translator.translate(text)
                             if translated:
-                                print(f"[Pipeline] Translated: {text} -> {translated}")
+                                debug(f"Pipeline: Translated: {text} -> {translated}")
                         except Exception as e:
-                            print(f"[Pipeline] Translation error: {e}")
+                            warning(f"Pipeline: Translation error: {e}")
                     
                     event = SubtitleEvent(
                         text=text,
@@ -188,7 +190,7 @@ class RealtimePipeline:
                     )
                     self.on_subtitle(event)
             except Exception as e:
-                print(f"[Pipeline] Transcription error: {e}")
+                error(f"Pipeline: Transcription error: {e}")
     
     def start(self) -> None:
         """Start the real-time pipeline."""
@@ -207,7 +209,7 @@ class RealtimePipeline:
         # Start audio capture
         self._audio_capture.start(callback=self._on_audio)
         
-        print("[Pipeline] Started")
+        info("Pipeline: Started")
     
     def stop(self) -> None:
         """Stop the pipeline."""
@@ -226,7 +228,7 @@ class RealtimePipeline:
             except queue.Empty:
                 break
         
-        print("[Pipeline] Stopped")
+        info("Pipeline: Stopped")
     
     def __enter__(self):
         self.start()

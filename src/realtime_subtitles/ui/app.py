@@ -184,7 +184,7 @@ class App:
                 language=settings["language"],
                 on_subtitle=self._on_subtitle,
                 use_vad=settings["use_vad"],
-                vad_silence_ms=settings.get("vad_silence_ms", 300),
+                vad_silence_ms=settings.get("vad_silence_ms", 100),
                 min_segment_duration=settings["min_duration"],
                 max_segment_duration=settings["max_duration"],
                 enable_translation=settings.get("enable_translation", False),
