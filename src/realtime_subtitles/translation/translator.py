@@ -350,22 +350,23 @@ def create_translator(
     Returns:
         Translator instance (NLLBTranslator or GoogleTranslator)
     """
+    # Convert NLLB format to Google format
+    lang_map = {
+        "zho_Hant": "zh-tw",
+        "zho_Hans": "zh-cn",
+        "eng_Latn": "en",
+        "jpn_Jpan": "ja",
+        "kor_Hang": "ko",
+    }
+    
     if engine == "google":
         if not GOOGLETRANS_AVAILABLE:
             raise ImportError("googletrans not available. Install: pip install googletrans==4.0.0-rc1")
-        # Convert NLLB format to Google format if needed
-        lang_map = {
-            "zho_Hant": "zh-tw",
-            "zho_Hans": "zh-cn",
-            "eng_Latn": "en",
-            "jpn_Jpan": "ja",
-            "kor_Hang": "ko",
-        }
         google_lang = lang_map.get(target_language, target_language)
         return GoogleTranslator(target_language=google_lang)
-    else:
+    else:  # nllb
         if not CTRANSLATE2_AVAILABLE:
-            raise ImportError("CTranslate2 not available")
+            raise ImportError("CTranslate2 not available. Install: pip install ctranslate2")
         return NLLBTranslator(target_language=target_language, **kwargs)
 
 

@@ -13,10 +13,10 @@ class SettingsManager:
     """Manages saving and loading user settings."""
     
     DEFAULT_SETTINGS = {
-        "mode": "實時",
-        "model": "Sherpa-ONNX",
-        "language": "英文",
-        "vad_enabled": False,
+        "mode": "realtime",
+        "model": "sherpa-zh-en",
+        "language": None,
+        "vad_enabled": True,
         "vad_silence_ms": 100,
         "min_duration": 100,
     }

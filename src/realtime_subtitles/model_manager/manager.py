@@ -230,28 +230,73 @@ class ModelManager:
     ) -> None:
         """Download model from Hugging Face Hub."""
         try:
-            from huggingface_hub import snapshot_download
+            from huggingface_hub import HfApi, hf_hub_download
         except ImportError:
             raise RuntimeError(t("download_status_install_hf"))
         
         model_path = self.get_model_path(model)
         
         if callback:
-            callback(model.id, 0.1, t("download_status_downloading").format(name=t(model.name)))
+            callback(model.id, 0.05, t("download_status_downloading").format(name=t(model.name)))
         
-        # Disable tqdm progress bars to avoid threading issues
-        import os
-        os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
-        
-        snapshot_download(
-            repo_id=model.hf_repo,
-            local_dir=str(model_path),
-            local_dir_use_symlinks=False,
-            cache_dir=str(model_path),
-        )
-        
+        api = HfApi()
+        repo_info = api.repo_info(model.hf_repo, repo_type="model")
+        files = list(repo_info.siblings or [])
+
+        # Calculate total bytes (if available)
+        total_bytes = 0
+        for f in files:
+            if getattr(f, "size", None):
+                total_bytes += f.size
+
+        def local_file_size(path: Path) -> int:
+            try:
+                return path.stat().st_size
+            except Exception:
+                return 0
+
+        downloaded_bytes = 0
+        downloaded_files = 0
+        for f in files:
+            local_path = model_path / f.rfilename
+            if local_path.exists() and local_path.is_file():
+                downloaded_files += 1
+                downloaded_bytes += local_file_size(local_path)
+
         if callback:
-            callback(model.id, 0.9, t("download_status_verifying"))
+            callback(model.id, 0.01, t("download_status_downloading").format(name=t(model.name)))
+
+        last_reported = {"percent": -5}
+
+        for f in files:
+            hf_hub_download(
+                repo_id=model.hf_repo,
+                filename=f.rfilename,
+                local_dir=str(model_path),
+            )
+
+            downloaded_files += 1
+            if getattr(f, "size", None):
+                downloaded_bytes += f.size
+            else:
+                downloaded_bytes += local_file_size(model_path / f.rfilename)
+
+            if total_bytes > 0:
+                progress = min(0.95, downloaded_bytes / total_bytes)
+            else:
+                progress = min(0.95, downloaded_files / max(1, len(files)))
+
+            if callback:
+                callback(model.id, progress, t("download_status_downloading").format(name=t(model.name)))
+
+            percent = int(progress * 100)
+            if percent - last_reported["percent"] >= 5:
+                last_reported["percent"] = percent
+                print(f"[ModelManager] {t(model.name)}: {percent}%")
+
+        if callback:
+            callback(model.id, 0.98, t("download_status_verifying"))
+        print(f"[ModelManager] {t(model.name)}: 98% ({t('download_status_verifying')})")
     
     def _download_from_url(
         self,
@@ -270,6 +315,8 @@ class ModelManager:
         if callback:
             callback(model.id, 0.05, t("download_status_downloading").format(name=t(model.name)))
         
+        last_reported = {"percent": -5}
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=self._get_archive_suffix(url)) as tmp:
             tmp_path = tmp.name
             
@@ -281,11 +328,16 @@ class ModelManager:
                         downloaded_mb = block_num * block_size / 1024 / 1024
                         total_mb = total_size / 1024 / 1024
                         callback(model.id, progress, t("download_status_progress").format(downloaded=f"{downloaded_mb:.0f}", total=f"{total_mb:.0f}"))
+                    percent = int(progress * 100)
+                    if percent - last_reported["percent"] >= 5:
+                        last_reported["percent"] = percent
+                        print(f"[ModelManager] {t(model.name)}: {percent}%")
             
             urllib.request.urlretrieve(url, tmp_path, report_progress)
         
         if callback:
             callback(model.id, 0.85, t("download_status_extracting"))
+        print(f"[ModelManager] {t(model.name)}: 85% ({t('download_status_extracting')})")
         
         model_path.mkdir(parents=True, exist_ok=True)
         
@@ -301,6 +353,7 @@ class ModelManager:
         # Notify completion
         if callback:
             callback(model.id, 1.0, t("download_status_complete"))
+        print(f"[ModelManager] {t(model.name)}: 100% ({t('download_status_complete')})")
     
     @staticmethod
     def _get_archive_suffix(url: str) -> str:

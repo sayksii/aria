@@ -109,6 +109,7 @@ TRANSLATIONS = {
     "restart_required": "語言變更將在重啟程式後生效",
     "already_running": "ARIA 已經在執行中。\nARIA is already running.",
     "reset_settings": "重置設定",
+    "quit_app": "退出程式",
     "reset_settings_confirm": "這將重置所有設定，包括字幕框位置。\nARIA 將會重啟。是否繼續？",
     "reset_settings_desc": "修復看不到字幕框或恢復預設設定",
     
@@ -145,4 +146,7 @@ TRANSLATIONS = {
     "download_status_error": "錯誤: {error}",
     "download_status_progress": "下載中... {downloaded}/{total}MB",
     "download_status_install_hf": "請安裝 huggingface_hub: pip install huggingface_hub",
+    "cancel_download": "取消下載",
+    "download_waiting": "等待下載...",
+    "download_progress_note": "進度條可能不準，依網路狀況會跳動",
 }

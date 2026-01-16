@@ -109,6 +109,7 @@ TRANSLATIONS = {
     "restart_required": "Language change will take effect after restart",
     "already_running": "ARIA is already running.",
     "reset_settings": "Reset Settings",
+    "quit_app": "Quit",
     "reset_settings_confirm": "This will reset all settings including overlay positions.\nARIA will restart. Continue?",
     "reset_settings_desc": "Fix can't see overlay or restore defaults",
     
@@ -145,4 +146,7 @@ TRANSLATIONS = {
     "download_status_error": "Error: {error}",
     "download_status_progress": "Downloading... {downloaded}/{total}MB",
     "download_status_install_hf": "Please install huggingface_hub: pip install huggingface_hub",
+    "cancel_download": "Cancel Download",
+    "download_waiting": "Waiting to download...",
+    "download_progress_note": "Progress may be inaccurate and can jump based on network",
 }

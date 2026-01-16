@@ -1,43 +1,60 @@
 """
-Main Settings Window for ARIA.
+Main Settings Window for ARIA using PyQt6.
 
-A modern, beautiful settings interface using CustomTkinter.
+A modern, beautiful settings interface.
 """
 
-import customtkinter as ctk
+from PyQt6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QLabel, QPushButton, QComboBox, QFrame, QCheckBox, QSlider,
+    QMessageBox, QApplication
+)
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QIcon
 from typing import Callable, Optional
-import threading
+import os
+import sys
 
 from ..settings_manager import get_settings_manager
 from .model_manager_window import show_model_manager
 from ..i18n import t, get_current_language, set_language, LANGUAGES
 
 
-# Configure CustomTkinter
-ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("blue")
-
-
-class SettingsWindow(ctk.CTk):
-    """
-    Main settings window with model selection, language, VAD options, etc.
-    """
+class SettingsWindow(QMainWindow):
+    """Main settings window with model selection, language, VAD options, etc."""
     
-    
-    # Internal model IDs (without display names - use _get_models() for display)
+    # Model options
     MODEL_IDS = ["large-v3", "large-v3-turbo", "medium"]
-    
-    # Internal language codes (use _get_languages() for display)
     LANGUAGE_CODES = [None, "zh", "en", "ja", "ko", "yue", "es", "fr", "de"]
     
+    # Signal for thread-safe updates
+    status_update = pyqtSignal(str, str)  # text, color
+    
     @staticmethod
-    def _get_models():
-        """Get models list with translated display names."""
+    def _get_whisper_models():
+        """Get Whisper models list with translated display names."""
         return [
             (t("model_large_v3"), "large-v3"),
             (t("model_large_v3_turbo"), "large-v3-turbo"),
             (t("model_medium"), "medium"),
         ]
+    
+    @staticmethod
+    def _get_realtime_languages():
+        """Get available languages for realtime mode."""
+        return [
+            ("中/英文", "zh"),   # Uses Sherpa
+            ("日文", "ja"),      # Uses Vosk
+        ]
+    
+    @staticmethod
+    def _get_streaming_model_for_language(lang_code: str) -> str:
+        """Get the streaming model ID for a language."""
+        if lang_code in ["zh", "en"]:
+            return "sherpa-zh-en"
+        elif lang_code == "ja":
+            return "vosk-ja"
+        return "sherpa-zh-en"  # Default
     
     @staticmethod
     def _get_languages():
@@ -54,524 +71,617 @@ class SettingsWindow(ctk.CTk):
             (t("lang_german"), "de"),
         ]
     
-    # Keep MODELS and LANGUAGES as property for backward compatibility
     @property
-    def MODELS(self):
-        return self._get_models()
+    def WHISPER_MODELS(self):
+        return self._get_whisper_models()
+    
+    @property
+    def REALTIME_LANGUAGES(self):
+        return self._get_realtime_languages()
     
     @property
     def LANGUAGES(self):
         return self._get_languages()
     
-    def __init__(self, on_start: Callable[[dict], None]):
-        """
-        Initialize the settings window.
+    def __init__(self, on_start: Callable[[dict], None], on_quit: Optional[Callable[[], None]] = None):
+        """Initialize the settings window.
         
         Args:
             on_start: Callback when user clicks Start. Called with settings dict.
+            on_quit: Callback when user clicks Quit.
         """
         super().__init__()
         
         self.on_start = on_start
+        self.on_quit = on_quit
         self._is_running = False
-        self._settings_mgr = get_settings_manager()
+        self._loading = True
         
         # Window setup
-        self.title("ARIA")
-        self.geometry("800x680")  # Wider layout for English text, taller for reset button
-        self.resizable(False, False)
+        self.setWindowTitle("ARIA")
+        self.setFixedSize(800, 620)
+        self.setStyleSheet(self._get_stylesheet())
         
-        # Center window
-        self.update_idletasks()
-        x = (self.winfo_screenwidth() - 800) // 2
-        y = (self.winfo_screenheight() - 680) // 2
-        self.geometry(f"+{x}+{y}")
+        # Center on screen
+        self._center_on_screen()
         
-        # Build UI
+        # Create UI
         self._create_ui()
         
         # Load saved settings
         self._load_saved_settings()
+        self._loading = False
+        
+        # Connect status signal
+        self.status_update.connect(self._update_status_label)
     
-    def _create_ui(self) -> None:
-        """Create all UI components with horizontal layout."""
-        # Main container with padding
-        container = ctk.CTkFrame(self, fg_color="transparent")
-        container.pack(fill="both", expand=True, padx=15, pady=15)
+    def _center_on_screen(self):
+        """Center window on screen."""
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_geometry = screen.geometry()
+            x = (screen_geometry.width() - self.width()) // 2
+            y = (screen_geometry.height() - self.height()) // 2
+            self.move(x, y)
+    
+    def _get_stylesheet(self):
+        """Return the main stylesheet."""
+        return """
+            QMainWindow {
+                background-color: #1a1a1a;
+            }
+            QLabel {
+                color: white;
+            }
+            QFrame#card {
+                background-color: #2a2a2a;
+                border-radius: 12px;
+            }
+            QFrame#title_label {
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QPushButton {
+                background-color: #3B8ED0;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #4AA3E0;
+            }
+            QPushButton:pressed {
+                background-color: #2A7DC0;
+            }
+            QPushButton#secondary {
+                background-color: transparent;
+                border: 1px solid #555555;
+                color: #aaaaaa;
+            }
+            QPushButton#secondary:hover {
+                background-color: #333333;
+            }
+            QComboBox {
+                background-color: #333333;
+                color: white;
+                border: 1px solid #444444;
+                border-radius: 6px;
+                padding: 8px 12px;
+                min-width: 180px;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: center right;
+                width: 20px;
+                border: none;
+                background: transparent;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #333333;
+                color: white;
+                selection-background-color: #3B8ED0;
+            }
+            QCheckBox {
+                color: white;
+            }
+            QCheckBox::indicator {
+                width: 20px;
+                height: 20px;
+                border-radius: 4px;
+                border: 1px solid #555555;
+                background-color: #333333;
+            }
+            QCheckBox::indicator:hover {
+                border-color: #3B8ED0;
+                background-color: #444444;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #3B8ED0;
+                border-color: #3B8ED0;
+            }
+            QCheckBox::indicator:checked:hover {
+                background-color: #4AA3E0;
+                border-color: #4AA3E0;
+            }
+            QComboBox:hover {
+                border-color: #3B8ED0;
+            }
+        """
+    
+    def _create_ui(self):
+        """Create all UI components."""
+        # Central widget
+        central = QWidget()
+        self.setCentralWidget(central)
         
-        # Header row with title and language selector
-        header_frame = ctk.CTkFrame(container, fg_color="transparent", height=60)
-        header_frame.pack(fill="x", pady=(0, 10))
-        header_frame.pack_propagate(False)  # Fixed height
+        # Main layout
+        main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(15)
         
-        # Title centered absolutely
-        title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        title_frame.place(relx=0.5, rely=0.5, anchor="center")
+        # === Header ===
+        header = self._create_header()
+        main_layout.addWidget(header)
         
-        title_label = ctk.CTkLabel(
-            title_frame,
-            text=t("window_title"),
-            font=ctk.CTkFont(size=22, weight="bold"),
-        )
-        title_label.pack()
+        # === Two-column layout ===
+        columns = QHBoxLayout()
+        columns.setSpacing(15)
         
-        subtitle_label = ctk.CTkLabel(
-            title_frame,
-            text=t("subtitle"),
-            font=ctk.CTkFont(size=11),
-            text_color="gray",
-        )
-        subtitle_label.pack()
+        # Left column
+        left_col = QVBoxLayout()
+        left_col.setSpacing(15)
+        left_col.addWidget(self._create_recognition_card())
+        left_col.addWidget(self._create_model_card())
+        columns.addLayout(left_col)
         
-        # Language selector on the right (absolute position)
-        lang_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        lang_frame.place(relx=1.0, rely=0.5, anchor="e", x=-10)
+        # Right column
+        right_col = QVBoxLayout()
+        right_col.setSpacing(15)
+        right_col.addWidget(self._create_translation_card())
+        right_col.addWidget(self._create_vad_card())
+        right_col.addWidget(self._create_reset_card())
+        columns.addLayout(right_col)
         
-        lang_options = [LANGUAGES[code][0] for code in LANGUAGES]
-        current_lang = get_current_language()
-        current_lang_name = LANGUAGES.get(current_lang, LANGUAGES["zh_TW"])[0]
+        main_layout.addLayout(columns)
         
-        self.lang_selector = ctk.CTkOptionMenu(
-            lang_frame,
-            values=lang_options,
-            width=100,
-            height=28,
-            font=ctk.CTkFont(size=11),
-            command=self._on_language_change,
-        )
-        self.lang_selector.set(current_lang_name)
-        self.lang_selector.pack()
-        
-        # ===== Two-column layout using grid =====
-        columns_frame = ctk.CTkFrame(container, fg_color="transparent")
-        columns_frame.pack(fill="both", expand=True)
-        columns_frame.columnconfigure(0, weight=1)
-        columns_frame.columnconfigure(1, weight=1)
-        columns_frame.rowconfigure(0, weight=1)
-        
-        # Left column - Recognition + Model
-        left_col = ctk.CTkFrame(columns_frame, fg_color="transparent")
-        left_col.grid(row=0, column=0, sticky="new", padx=(0, 8))
-        
-        # Right column - Translation + VAD
-        right_col = ctk.CTkFrame(columns_frame, fg_color="transparent")
-        right_col.grid(row=0, column=1, sticky="new", padx=(8, 0))
-        
-        # ========== LEFT COLUMN ==========
-        # === Recognition Settings Frame ===
-        recog_frame = ctk.CTkFrame(left_col, height=200)
-        recog_frame.pack(fill="x", pady=(0, 15))
-        recog_frame.pack_propagate(False)  # Keep fixed height
-        
-        recog_title = ctk.CTkLabel(
-            recog_frame,
-            text=t("recognition_settings"),
-            font=ctk.CTkFont(size=13, weight="bold"),
-            anchor="w",
-        )
-        recog_title.pack(fill="x", padx=18, pady=(15, 12))
-        
-        # Preset mode selection (centered) - FIRST: select mode
-        mode_row = ctk.CTkFrame(recog_frame, fg_color="transparent")
-        mode_row.pack(fill="x", padx=15, pady=(0, 5))
-        
-        self.mode_var = ctk.StringVar(value=t("mode_precise"))
-        self.mode_selector = ctk.CTkSegmentedButton(
-            mode_row,
-            values=[t("mode_precise"), t("mode_realtime")],
-            variable=self.mode_var,
-            command=self._on_mode_change,
-        )
-        self.mode_selector.pack(expand=True)  # Center the button
-        
-        # Mode description (dynamic, shows based on selected mode)
-        self.mode_desc = ctk.CTkLabel(
-            recog_frame,
-            text=t("mode_precise_desc"),  # Default for precise mode
-            font=ctk.CTkFont(size=11),
-            text_color="#888888",
-        )
-        self.mode_desc.pack(pady=(0, 15))
-        
-        # === Model Settings Frame (in left column) ===
-        model_frame = ctk.CTkFrame(left_col, height=200)
-        model_frame.pack(fill="x", pady=(0, 15))
-        model_frame.pack_propagate(False)  # Keep fixed height
-        
-        model_title = ctk.CTkLabel(
-            model_frame,
-            text=t("model_settings"),
-            font=ctk.CTkFont(size=13, weight="bold"),
-            anchor="w",
-        )
-        model_title.pack(fill="x", padx=18, pady=(15, 12))
-        
-        # Model dropdown
-        model_row = ctk.CTkFrame(model_frame, fg_color="transparent")
-        model_row.pack(fill="x", padx=18, pady=(0, 10))
-        
-        ctk.CTkLabel(model_row, text=t("model") + ":", width=50, anchor="w").pack(side="left")
-        self.model_var = ctk.StringVar(value=t("model_large_v3"))
-        self.model_dropdown = ctk.CTkComboBox(
-            model_row,
-            values=[m[0] for m in self.MODELS],
-            variable=self.model_var,
-            width=200,
-            state="readonly",
-        )
-        self.model_dropdown.pack(side="left", padx=(5, 0))
-        
-        # Language dropdown
-        lang_row = ctk.CTkFrame(model_frame, fg_color="transparent")
-        lang_row.pack(fill="x", padx=18, pady=(0, 15))
-        
-        ctk.CTkLabel(lang_row, text=t("lang") + ":", width=50, anchor="w").pack(side="left")
-        self.lang_var = ctk.StringVar(value=t("auto_detect"))
-        self.lang_dropdown = ctk.CTkComboBox(
-            lang_row,
-            values=[l[0] for l in self.LANGUAGES],
-            variable=self.lang_var,
-            width=200,
-            state="readonly",
-        )
-        self.lang_dropdown.pack(side="left", padx=(5, 0))
-        # Use trace for reliable change detection (CTkComboBox command may not fire in streaming mode)
-        self.lang_var.trace_add("write", self._on_lang_var_change)
-        
-        # Manage models button
-        manage_models_row = ctk.CTkFrame(model_frame, fg_color="transparent")
-        manage_models_row.pack(fill="x", padx=18, pady=(0, 15))
-        
-        self.manage_models_btn = ctk.CTkButton(
-            manage_models_row,
-            text=t("manage_models"),
-            width=140,
-            height=28,
-            command=self._on_manage_models,
-        )
-        self.manage_models_btn.pack(side="left")
-        
-        # ========== RIGHT COLUMN ==========
-        # === Translation Settings Frame ===
-        trans_frame = ctk.CTkFrame(right_col, height=200)
-        trans_frame.pack(fill="x", pady=(0, 15))
-        trans_frame.pack_propagate(False)  # Keep fixed height
-        
-        trans_title = ctk.CTkLabel(
-            trans_frame,
-            text=t("translation_settings"),
-            font=ctk.CTkFont(size=13, weight="bold"),
-            anchor="w",
-        )
-        trans_title.pack(fill="x", padx=18, pady=(15, 12))
-        
-        # Translation switch
-        trans_row = ctk.CTkFrame(trans_frame, fg_color="transparent")
-        trans_row.pack(fill="x", padx=18, pady=(0, 10))
-        
-        ctk.CTkLabel(trans_row, text=t("translation") + ":", width=60, anchor="w").pack(side="left")
-        self.trans_var = ctk.BooleanVar(value=False)
-        self.trans_switch = ctk.CTkSwitch(
-            trans_row,
-            text="",
-            variable=self.trans_var,
-            onvalue=True,
-            offvalue=False,
-            command=self._on_translation_change,
-        )
-        self.trans_switch.pack(side="left", padx=(5, 5))
-        self.trans_label = ctk.CTkLabel(trans_row, text="OFF", text_color="gray")
-        self.trans_label.pack(side="left")
-        
-        # Translation engine selection
-        engine_row = ctk.CTkFrame(trans_frame, fg_color="transparent")
-        engine_row.pack(fill="x", padx=18, pady=(0, 10))
-        
-        ctk.CTkLabel(engine_row, text=t("engine") + ":", width=60, anchor="w").pack(side="left")
-        self.trans_engine_var = ctk.StringVar(value=t("engine_google"))
-        self.trans_engine_dropdown = ctk.CTkComboBox(
-            engine_row,
-            values=[t("engine_google"), t("engine_nllb")],
-            variable=self.trans_engine_var,
-            width=180,
-            state="readonly",
-        )
-        self.trans_engine_dropdown.pack(side="left", padx=(5, 0))
-        
-        # Target language dropdown
-        target_row = ctk.CTkFrame(trans_frame, fg_color="transparent")
-        target_row.pack(fill="x", padx=18, pady=(0, 15))
-        
-        ctk.CTkLabel(target_row, text=t("target_lang") + ":", width=60, anchor="w").pack(side="left")
-        self.target_lang_var = ctk.StringVar(value=t("target_zh_TW"))
-        self.target_lang_dropdown = ctk.CTkComboBox(
-            target_row,
-            values=[t("target_zh_TW"), t("target_zh_CN"), t("target_en"), t("target_ja"), t("target_ko"), t("target_es"), t("target_fr"), t("target_de")],
-            variable=self.target_lang_var,
-            width=180,
-            state="readonly",
-        )
-        self.target_lang_dropdown.pack(side="left", padx=(5, 0))
-        
-        # === VAD Settings Frame (in right column) ===
-        vad_frame = ctk.CTkFrame(right_col, height=140)
-        vad_frame.pack(fill="x", pady=(0, 15))
-        vad_frame.pack_propagate(False)  # Keep fixed height
-        
-        vad_title = ctk.CTkLabel(
-            vad_frame,
-            text=t("vad_settings"),
-            font=ctk.CTkFont(size=13, weight="bold"),
-            anchor="w",
-        )
-        vad_title.pack(fill="x", padx=18, pady=(15, 12))
-        
-        # VAD container (can be hidden in streaming mode)
-        self.vad_container = ctk.CTkFrame(vad_frame, fg_color="transparent")
-        self.vad_container.pack(fill="x")
-        
-        # VAD switch
-        vad_row = ctk.CTkFrame(self.vad_container, fg_color="transparent")
-        vad_row.pack(fill="x", padx=15, pady=(0, 5))
-        
-        ctk.CTkLabel(vad_row, text=t("vad_label") + ":", width=120, anchor="w").pack(side="left")
-        self.vad_var = ctk.BooleanVar(value=True)
-        self.vad_switch = ctk.CTkSwitch(
-            vad_row,
-            text="",
-            variable=self.vad_var,
-            onvalue=True,
-            offvalue=False,
-        )
-        self.vad_switch.pack(side="left", padx=(10, 0))
-        self.vad_label = ctk.CTkLabel(vad_row, text="ON", text_color="#3B8ED0")
-        self.vad_label.pack(side="left", padx=(10, 0))
-        self.vad_var.trace_add("write", self._update_vad_label)
-        
-        # VAD description (can be updated based on mode)
-        self.vad_desc = ctk.CTkLabel(
-            self.vad_container,
-            text=t("vad_desc_precise"),
-            font=ctk.CTkFont(size=11),
-            text_color="#888888",
-        )
-        self.vad_desc.pack(padx=15, anchor="w", pady=(0, 10))
-        
-        # === Reset Settings (in right column, below VAD) ===
-        reset_frame = ctk.CTkFrame(right_col, fg_color="transparent")
-        reset_frame.pack(fill="x", pady=(0, 10))
-        
-        self.reset_button = ctk.CTkButton(
-            reset_frame,
-            text="🔄 " + t("reset_settings"),
-            width=200,
-            height=32,
-            fg_color="transparent",
-            border_width=1,
-            border_color="#555555",
-            hover_color="#333333",
-            text_color="#aaaaaa",
-            command=self._on_reset_settings,
-        )
-        self.reset_button.pack(padx=18)
-        
-        reset_desc = ctk.CTkLabel(
-            reset_frame,
-            text=t("reset_settings_desc"),
-            font=ctk.CTkFont(size=11),
-            text_color="#888888",
-        )
-        reset_desc.pack(pady=(5, 0))
-        
-        # Custom settings container (hidden by default)
-        self.custom_settings_frame = ctk.CTkFrame(vad_frame, fg_color="transparent")
-        # Don't pack yet - will be shown when custom mode is selected
-        
-        # VAD sensitivity slider (silence duration to end speech)
-        vad_sens_row = ctk.CTkFrame(self.custom_settings_frame, fg_color="transparent")
-        vad_sens_row.pack(fill="x", padx=15, pady=(0, 10))
-        
-        ctk.CTkLabel(vad_sens_row, text=t("silence_threshold") + ":", width=120, anchor="w").pack(side="left")
-        self.vad_silence_var = ctk.DoubleVar(value=500)  # Default for realtime mode
-        self.vad_sens_slider = ctk.CTkSlider(
-            vad_sens_row,
-            from_=100,
-            to=800,
-            number_of_steps=14,
-            variable=self.vad_silence_var,
-            width=200,
-        )
-        self.vad_sens_slider.pack(side="left", padx=(10, 10))
-        self.vad_sens_label = ctk.CTkLabel(vad_sens_row, text="500ms", width=50)
-        self.vad_sens_label.pack(side="left")
-        self.vad_silence_var.trace_add("write", self._update_vad_sens_label)
-        
-        # Min duration slider
-        min_row = ctk.CTkFrame(self.custom_settings_frame, fg_color="transparent")
-        min_row.pack(fill="x", padx=15, pady=(0, 10))
-        
-        ctk.CTkLabel(min_row, text=t("min_duration") + ":", width=120, anchor="w").pack(side="left")
-        self.min_duration_var = ctk.DoubleVar(value=2.0)  # Default for realtime mode
-        self.min_slider = ctk.CTkSlider(
-            min_row,
-            from_=0.5,
-            to=5.0,
-            number_of_steps=18,
-            variable=self.min_duration_var,
-            width=200,
-        )
-        self.min_slider.pack(side="left", padx=(10, 10))
-        self.min_label = ctk.CTkLabel(min_row, text="2.0s", width=40)
-        self.min_label.pack(side="left")
-        self.min_duration_var.trace_add("write", self._update_min_label)
-        
-        # Max duration - fixed value (not exposed in UI)
-        self.max_duration_var = ctk.DoubleVar(value=10.0)
+        # Push button to bottom
+        main_layout.addStretch()
         
         # === Start Button ===
-        self.start_button = ctk.CTkButton(
-            container,
-            text=t("start_button"),
-            font=ctk.CTkFont(size=18, weight="bold"),
-            height=50,
-            width=200,
-            command=self._on_start_click,
-        )
-        self.start_button.pack(pady=(25, 20))
+        button_row = QHBoxLayout()
+        button_row.addStretch()
         
-        # === Status ===
-        self.status_label = ctk.CTkLabel(
-            container,
-            text=t("status_ready"),
-            font=ctk.CTkFont(size=12),
-            text_color="gray",
-        )
-        self.status_label.pack(pady=(0, 10))
+        self.start_button = QPushButton("🎙 " + t("start"))
+        self.start_button.setMinimumHeight(45)
+        self.start_button.setMinimumWidth(150)
+        self.start_button.setStyleSheet("""
+            QPushButton {
+                font-size: 18px;
+                font-weight: bold;
+            }
+        """)
+        self.start_button.clicked.connect(self._on_start_click)
+        button_row.addWidget(self.start_button)
         
-        # === Footer === (placed with side=bottom first to reserve space)
-        footer = ctk.CTkLabel(
-            container,
-            text="v0.1.0 | " + t("footer"),
-            font=ctk.CTkFont(size=11),
-            text_color="#666666",
-        )
-        footer.pack(side="bottom", pady=(0, 5))
-    
-    def _on_mode_change(self, mode: str) -> None:
-        """Handle preset mode change."""
-        if mode == t("mode_precise"):
-            # Precise mode: 150ms silence, 5s interval (uses Whisper)
-            self.vad_silence_var.set(100)
-            self.min_duration_var.set(100)
-            self.custom_settings_frame.pack_forget()
-            self.mode_desc.configure(text=t("mode_precise_desc"))
-            # Enable VAD settings
-            self.vad_switch.configure(state="normal")
-            self.vad_var.set(True)
-            self._update_vad_label()
-            self.vad_desc.configure(text=t("vad_desc_precise"), text_color="#888888")
-            # Restore Whisper models
-            self.model_dropdown.configure(values=[m[0] for m in self.MODELS])
-            self.model_var.set(t("model_large_v3"))
-            # Restore full language options
-            self.lang_dropdown.configure(values=[l[0] for l in self.LANGUAGES])
-        else:  # Realtime (streaming with Sherpa/Vosk)
-            # Realtime mode: streaming transcription
-            self.custom_settings_frame.pack_forget()
-            self.mode_desc.configure(text=t("mode_realtime_desc"))
-            # Disable VAD settings (streaming engines have built-in endpoint detection)
-            self.vad_switch.configure(state="disabled")
-            self.vad_var.set(False)
-            self._update_vad_label()
-            self.vad_desc.configure(text=t("vad_desc_realtime"), text_color="#666666")
-            # Show auto-engine message (engine is selected by language automatically)
-            self.model_dropdown.configure(values=["Sherpa-ONNX"])
-            self.model_var.set("Sherpa-ONNX")
-            # Limit to languages with streaming models
-            streaming_languages = [t("lang_chinese"), t("lang_english"), t("lang_japanese")]
-            self.lang_dropdown.configure(values=streaming_languages)
-            # If current selection is not valid, default to Chinese
-            if self.lang_var.get() not in streaming_languages:
-                self.lang_var.set(t("lang_chinese"))
-            # Update model display based on language
-            self._update_streaming_model_display()
-            self._update_streaming_model_display()
-    
-    def _on_lang_var_change(self, *args) -> None:
-        """Handle language variable change via trace."""
-        if self.mode_var.get() == t("mode_realtime"):
-            self._update_streaming_model_display()
-    
-    def _on_language_change(self, language: str) -> None:
-        """Handle language change - update model display in streaming mode (legacy)."""
-        if self.mode_var.get() == t("mode_realtime"):
-            self._update_streaming_model_display()
-    
-    def _update_streaming_model_display(self) -> None:
-        """Update model dropdown to show current streaming engine based on language."""
-        lang_code = self._get_language_value()  # Get internal language code
-        if lang_code == "ja":
-            engine = "Vosk"
-        else:  # Chinese or English - use Sherpa
-            engine = "Sherpa-ONNX"
+        button_row.addStretch()
+        main_layout.addLayout(button_row)
         
-        self.model_dropdown.configure(values=[engine])
-        self.model_var.set(engine)
+        # === Status Label (close to button) ===
+        self.status_label = QLabel(t("status_ready"))
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setStyleSheet("color: #888888; margin-top: 5px;")
+        main_layout.addWidget(self.status_label)
+        
+
     
-    def _on_translation_change(self) -> None:
-        """Handle translation switch change."""
-        if self.trans_var.get():
-            self.trans_label.configure(text="ON", text_color="#3B8ED0")
+    def _create_header(self):
+        """Create header with title and language selector."""
+        header = QFrame()
+        layout = QHBoxLayout(header)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Left spacer (same width as language selector for balance)
+        left_spacer = QWidget()
+        left_spacer.setFixedWidth(210)
+        layout.addWidget(left_spacer)
+        
+        # Spacer
+        layout.addStretch()
+        
+        # Title (centered)
+        title_container = QVBoxLayout()
+        
+        title = QLabel("ARIA")
+        title.setFont(QFont("", 22, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_container.addWidget(title)
+        
+        subtitle = QLabel(t("subtitle") + " | v0.1.0")
+        subtitle.setStyleSheet("color: #aaaaaa; font-size: 12px;")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_container.addWidget(subtitle)
+        
+        layout.addLayout(title_container)
+        
+        # Spacer
+        layout.addStretch()
+        
+        # Language selector (right side)
+        self.lang_selector = QComboBox()
+        lang_options = [LANGUAGES[code][0] for code in LANGUAGES]
+        self.lang_selector.addItems(lang_options)
+        current_lang = get_current_language()
+        current_lang_name = LANGUAGES.get(current_lang, LANGUAGES["zh_TW"])[0]
+        self.lang_selector.setCurrentText(current_lang_name)
+        self.lang_selector.currentTextChanged.connect(self._on_ui_language_change)
+        self.lang_selector.setFixedWidth(120)
+        layout.addWidget(self.lang_selector)
+        
+        return header
+    
+    def _create_card(self, title: str) -> tuple:
+        """Create a card frame with title. Returns (frame, content_layout)."""
+        frame = QFrame()
+        frame.setObjectName("card")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(18, 15, 18, 15)
+        layout.setSpacing(12)
+        
+        # Title
+        title_label = QLabel(title)
+        title_label.setFont(QFont("", 13, QFont.Weight.Bold))
+        layout.addWidget(title_label)
+        
+        return frame, layout
+    
+    def _create_recognition_card(self):
+        """Create recognition settings card."""
+        card, layout = self._create_card(t("recognition_settings"))
+        
+        # Mode selector (Precise / Realtime)
+        mode_layout = QHBoxLayout()
+        mode_layout.addStretch()
+        
+        self.mode_precise_btn = QPushButton(t("mode_precise"))
+        self.mode_precise_btn.setCheckable(True)
+        self.mode_precise_btn.setChecked(True)
+        self.mode_precise_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: 1px solid #555555;
+                color: #888888;
+            }
+            QPushButton:hover {
+                background-color: #333333;
+                border-color: #3B8ED0;
+            }
+            QPushButton:checked {
+                background-color: #3B8ED0;
+                border: none;
+                color: white;
+            }
+            QPushButton:checked:hover {
+                background-color: #4AA3E0;
+            }
+        """)
+        self.mode_precise_btn.clicked.connect(lambda: self._on_mode_change("precise"))
+        mode_layout.addWidget(self.mode_precise_btn)
+        
+        self.mode_realtime_btn = QPushButton(t("mode_realtime"))
+        self.mode_realtime_btn.setCheckable(True)
+        self.mode_realtime_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: 1px solid #555555;
+                color: #888888;
+            }
+            QPushButton:hover {
+                background-color: #333333;
+                border-color: #3B8ED0;
+            }
+            QPushButton:checked {
+                background-color: #3B8ED0;
+                border: none;
+                color: white;
+            }
+            QPushButton:checked:hover {
+                background-color: #4AA3E0;
+            }
+        """)
+        self.mode_realtime_btn.clicked.connect(lambda: self._on_mode_change("realtime"))
+        mode_layout.addWidget(self.mode_realtime_btn)
+        
+        mode_layout.addStretch()
+        layout.addLayout(mode_layout)
+        
+        # Mode description
+        self.mode_desc = QLabel(t("mode_precise_desc"))
+        self.mode_desc.setStyleSheet("color: #aaaaaa; font-size: 12px;")
+        self.mode_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.mode_desc)
+        
+        return card
+    
+    def _create_model_card(self):
+        """Create model settings card."""
+        card, layout = self._create_card(t("model_settings"))
+        
+        # Store reference for enabling/disabling
+        self.model_card = card
+        
+        # Model dropdown
+        model_row = QHBoxLayout()
+        self.model_label = QLabel(t("model") + ":")
+        model_row.addWidget(self.model_label)
+        self.model_dropdown = QComboBox()
+        self.model_dropdown.addItems([m[0] for m in self.WHISPER_MODELS])
+        self.model_dropdown.currentTextChanged.connect(self._on_model_change)
+        model_row.addWidget(self.model_dropdown)
+        model_row.addStretch()
+        layout.addLayout(model_row)
+        
+        # Language dropdown
+        lang_row = QHBoxLayout()
+        self.lang_label = QLabel(t("lang") + ":")
+        lang_row.addWidget(self.lang_label)
+        self.lang_dropdown = QComboBox()
+        self.lang_dropdown.addItems([l[0] for l in self.LANGUAGES])
+        self.lang_dropdown.currentTextChanged.connect(lambda _: self._persist_ui_settings())
+        lang_row.addWidget(self.lang_dropdown)
+        lang_row.addStretch()
+        layout.addLayout(lang_row)
+        
+        # Manage models button
+        self.manage_models_btn = QPushButton("📦 " + t("manage_models"))
+        self.manage_models_btn.setObjectName("secondary")
+        self.manage_models_btn.setMaximumWidth(160)
+        self.manage_models_btn.clicked.connect(self._on_manage_models)
+        layout.addWidget(self.manage_models_btn)
+        
+        return card
+    
+    def _create_translation_card(self):
+        """Create translation settings card."""
+        card, layout = self._create_card(t("translation_settings"))
+        
+        # Translation switch
+        trans_row = QHBoxLayout()
+        trans_row.addWidget(QLabel(t("translation") + ":"))
+        self.trans_checkbox = QCheckBox()
+        self.trans_checkbox.stateChanged.connect(self._on_translation_change)
+        trans_row.addWidget(self.trans_checkbox)
+        self.trans_status = QLabel("OFF")
+        self.trans_status.setStyleSheet("color: #888888;")
+        trans_row.addWidget(self.trans_status)
+        trans_row.addStretch()
+        layout.addLayout(trans_row)
+        
+        # Engine dropdown
+        engine_row = QHBoxLayout()
+        engine_row.addWidget(QLabel(t("engine") + ":"))
+        self.trans_engine_dropdown = QComboBox()
+        self.trans_engine_dropdown.addItems([t("engine_google"), t("engine_nllb")])
+        self.trans_engine_dropdown.currentTextChanged.connect(lambda _: self._persist_ui_settings())
+        engine_row.addWidget(self.trans_engine_dropdown)
+        engine_row.addStretch()
+        layout.addLayout(engine_row)
+        
+        # Target language dropdown
+        target_row = QHBoxLayout()
+        target_row.addWidget(QLabel(t("target_lang") + ":"))
+        self.target_lang_dropdown = QComboBox()
+        self.target_lang_dropdown.addItems([
+            t("target_zh_TW"), t("target_zh_CN"), t("target_en"),
+            t("target_ja"), t("target_ko"), t("target_es"),
+            t("target_fr"), t("target_de")
+        ])
+        self.target_lang_dropdown.currentTextChanged.connect(lambda _: self._persist_ui_settings())
+        target_row.addWidget(self.target_lang_dropdown)
+        target_row.addStretch()
+        layout.addLayout(target_row)
+        
+        return card
+    
+    def _create_vad_card(self):
+        """Create VAD settings card."""
+        card, layout = self._create_card(t("vad_settings"))
+        
+        # Store reference for enabling/disabling
+        self.vad_card = card
+        
+        # VAD switch
+        vad_row = QHBoxLayout()
+        self.vad_label = QLabel(t("vad_label") + ":")
+        vad_row.addWidget(self.vad_label)
+        self.vad_checkbox = QCheckBox()
+        self.vad_checkbox.setChecked(True)
+        self.vad_checkbox.stateChanged.connect(self._on_vad_change)
+        vad_row.addWidget(self.vad_checkbox)
+        self.vad_status = QLabel("ON")
+        self.vad_status.setStyleSheet("color: #3B8ED0;")
+        vad_row.addWidget(self.vad_status)
+        vad_row.addStretch()
+        layout.addLayout(vad_row)
+        
+        # VAD description
+        self.vad_desc = QLabel(t("vad_desc_precise"))
+        self.vad_desc.setStyleSheet("color: #aaaaaa; font-size: 12px;")
+        self.vad_desc.setWordWrap(True)
+        layout.addWidget(self.vad_desc)
+        
+        return card
+    
+    def _create_reset_card(self):
+        """Create reset settings card."""
+        card = QFrame()
+        card.setStyleSheet("background: transparent;")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        button_row = QHBoxLayout()
+        button_row.setSpacing(10)
+        
+        self.reset_button = QPushButton("🔄 " + t("reset_settings"))
+        self.reset_button.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: 1px solid #555555;
+                color: #aaaaaa;
+                border-radius: 8px;
+                padding: 10px 20px;
+            }
+            QPushButton:hover {
+                background-color: #333333;
+                border-color: #3B8ED0;
+            }
+        """)
+        self.reset_button.clicked.connect(self._on_reset_settings)
+        button_row.addWidget(self.reset_button)
+        
+        self.quit_button = QPushButton("⏻ " + t("quit_app"))
+        self.quit_button.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: 1px solid #555555;
+                color: #aaaaaa;
+                border-radius: 8px;
+                padding: 10px 20px;
+            }
+            QPushButton:hover {
+                background-color: #333333;
+                border-color: #E04040;
+            }
+        """)
+        self.quit_button.clicked.connect(self._on_quit_app)
+        button_row.addWidget(self.quit_button)
+        
+        layout.addLayout(button_row)
+        
+        reset_desc = QLabel(t("reset_settings_desc"))
+        reset_desc.setStyleSheet("color: #aaaaaa; font-size: 12px;")
+        reset_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(reset_desc)
+        
+        return card
+    
+    # === Event Handlers ===
+    
+    def _on_mode_change(self, mode: str):
+        """Handle mode button click."""
+        if mode == "precise":
+            self.mode_precise_btn.setChecked(True)
+            self.mode_realtime_btn.setChecked(False)
+            self.mode_desc.setText(t("mode_precise_desc"))
+            # Swap to Whisper models
+            self.model_label.setText(t("model") + ":")  # Restore label to "模型:"
+            self.model_dropdown.clear()
+            self.model_dropdown.addItems([m[0] for m in self.WHISPER_MODELS])
+            self.model_dropdown.setEnabled(True)
+            # Show and restore full language list
+            self.lang_label.show()
+            self.lang_dropdown.show()
+            self.lang_dropdown.clear()
+            self.lang_dropdown.addItems([l[0] for l in self.LANGUAGES])
+            self.lang_dropdown.setEnabled(True)
+            self.vad_checkbox.setEnabled(True)
+            self.vad_desc.setText(t("vad_desc_precise"))
+            # Normal styling for VAD card
+            self.vad_label.setStyleSheet("color: white;")
+            self.vad_status.setStyleSheet("color: #3B8ED0;")
+            self.vad_checkbox.setStyleSheet("")  # Reset to default
+            self.vad_card.setStyleSheet("")
+            # Normal styling for Model card
+            self.model_label.setStyleSheet("color: white;")
+            self.lang_label.setStyleSheet("color: white;")
         else:
-            self.trans_label.configure(text="OFF", text_color="gray")
+            self.mode_precise_btn.setChecked(False)
+            self.mode_realtime_btn.setChecked(True)
+            self.mode_desc.setText(t("mode_realtime_desc"))
+            # Swap to realtime language selection (shows in model dropdown position)
+            self.model_label.setText(t("lang") + ":")  # Change label to "语言:"
+            self.model_dropdown.clear()
+            self.model_dropdown.addItems([lang[0] for lang in self.REALTIME_LANGUAGES])
+            self.model_dropdown.setEnabled(True)
+            # Hide language dropdown in realtime mode (selection is in model dropdown)
+            self.lang_label.hide()
+            self.lang_dropdown.hide()
+            self.vad_checkbox.setEnabled(False)
+            self.vad_desc.setText(t("vad_desc_realtime"))
+            # Dimmed styling for VAD card
+            self.vad_label.setStyleSheet("color: #555555;")
+            self.vad_status.setStyleSheet("color: #555555;")
+            self.vad_checkbox.setStyleSheet("""
+                QCheckBox::indicator {
+                    background-color: #444444;
+                    border: 1px solid #555555;
+                }
+            """)
+            self.vad_card.setStyleSheet("#card { background-color: rgba(42, 42, 42, 0.5); }")
+            # Normal styling for Model card
+            self.model_label.setStyleSheet("color: white;")
+        self._persist_ui_settings()
     
-    def _on_manage_models(self) -> None:
-        """Open the model manager window."""
+    def _on_model_change(self, model_text: str):
+        """Handle model dropdown change."""
+        self._persist_ui_settings()
+    
+    def _on_translation_change(self, state):
+        """Handle translation checkbox change."""
+        if state:
+            self.trans_status.setText("ON")
+            self.trans_status.setStyleSheet("color: #3B8ED0;")
+        else:
+            self.trans_status.setText("OFF")
+            self.trans_status.setStyleSheet("color: #888888;")
+        self._persist_ui_settings()
+    
+    def _on_vad_change(self, state):
+        """Handle VAD checkbox change."""
+        if state:
+            self.vad_status.setText("ON")
+            self.vad_status.setStyleSheet("color: #3B8ED0;")
+        else:
+            self.vad_status.setText("OFF")
+            self.vad_status.setStyleSheet("color: #888888;")
+        self._persist_ui_settings()
+    
+    def _on_manage_models(self):
+        """Open model manager window."""
         show_model_manager(self)
     
-    def _on_reset_settings(self) -> None:
-        """Reset all settings to default values."""
-        from tkinter import messagebox
-        
-        # Confirm with user
-        result = messagebox.askyesno(
+    def _on_reset_settings(self):
+        """Reset all settings."""
+        result = QMessageBox.question(
+            self,
             t("reset_settings"),
             t("reset_settings_confirm"),
-            parent=self
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         
-        if result:
-            # Clear settings file
-            import os
-            settings_path = os.path.expanduser("~/.config/realtime-subtitles/settings.json")
-            if os.path.exists(settings_path):
-                os.remove(settings_path)
+        if result == QMessageBox.StandardButton.Yes:
+            # Delete settings file
+            settings = get_settings_manager()
+            settings_path = settings._config_file
+            if settings_path.exists():
+                settings_path.unlink()
             
             # Restart app
-            import sys
             import subprocess
             subprocess.Popen([sys.executable, "-m", "realtime_subtitles.ui.app"])
-            sys.exit(0)
-    
-    def _update_vad_label(self, *args) -> None:
-        """Update VAD label when switch changes."""
-        if self.vad_var.get():
-            self.vad_label.configure(text="ON", text_color="#3B8ED0")
+            QApplication.quit()
+
+    def _on_quit_app(self):
+        """Quit the application."""
+        if self.on_quit:
+            self.on_quit()
         else:
-            self.vad_label.configure(text="OFF", text_color="gray")
+            QApplication.quit()
     
-    def _update_vad_sens_label(self, *args) -> None:
-        """Update VAD sensitivity label."""
-        self.vad_sens_label.configure(text=f"{int(self.vad_silence_var.get())}ms")
-    
-    def _update_min_label(self, *args) -> None:
-        """Update min duration label."""
-        self.min_label.configure(text=f"{self.min_duration_var.get():.1f}s")
-    
-    def _on_language_change(self, lang_display: str) -> None:
+    def _on_ui_language_change(self, lang_display: str):
         """Handle UI language change."""
-        from tkinter import messagebox
-        
         # Find language code from display name
         lang_code = None
         for code, (name, _) in LANGUAGES.items():
@@ -580,274 +690,216 @@ class SettingsWindow(ctk.CTk):
                 break
         
         if lang_code and lang_code != get_current_language():
-            # Save current settings before restarting (to preserve mode, model, etc.)
-            current_mode = self.mode_var.get()
-            # Convert display mode to internal value
-            if current_mode == t("mode_precise"):
-                mode_internal = "precise"
-            else:
-                mode_internal = "realtime"
-            
-            self._settings_mgr.set("mode", mode_internal)
-            self._settings_mgr.set("model", self._get_model_value())
-            self._settings_mgr.set("language", self._get_language_value())
-            self._settings_mgr.set("vad_enabled", self.vad_var.get())
-            self._settings_mgr.save()
-            
             set_language(lang_code)
-            # Restart the application
-            import sys
-            import subprocess
-            # Start a new instance of the app
-            subprocess.Popen([sys.executable, "-m", "realtime_subtitles.ui.app"])
-            # Exit current instance
-            sys.exit(0)
+            QMessageBox.information(
+                self,
+                t("restart_required"),
+                t("restart_required")
+            )
     
-    def _get_model_value(self) -> str:
-        """Get the actual model value from display name."""
-        display = self.model_var.get()
-        for name, value in self.MODELS:
-            if name == display:
-                return value
-        return "base"
-    
-    def _get_language_value(self) -> Optional[str]:
-        """Get the actual language value from display name."""
-        display = self.lang_var.get()
-        # First try the static LANGUAGES list
-        for name, value in self.LANGUAGES:
-            if name == display:
-                return value
-        
-        # Fallback: check translated language names for streaming mode
-        if display == t("lang_chinese"):
-            return "zh"
-        elif display == t("lang_english"):
-            return "en"
-        elif display == t("lang_japanese"):
-            return "ja"
-        elif display == t("auto_detect"):
-            return None
-        
-        return None
-    
-    def _get_target_language_code(self) -> str:
-        """Get the target language code from display name (NLLB format)."""
-        display = self.target_lang_var.get()
-        
-        # Map from translation key to NLLB code
-        key_to_code = {
-            "target_zh_TW": "zho_Hant",
-            "target_zh_CN": "zho_Hans",
-            "target_en": "eng_Latn",
-            "target_ja": "jpn_Jpan",
-            "target_ko": "kor_Hang",
-            "target_es": "spa_Latn",
-            "target_fr": "fra_Latn",
-            "target_de": "deu_Latn",
-        }
-        
-        # Find the code by matching display text with translations
-        for key, code in key_to_code.items():
-            if display == t(key):
-                return code
-        
-        # Fallback: check old Chinese values
-        old_map = {
-            "繁體中文": "zho_Hant", "繁体中文": "zho_Hant",
-            "簡體中文": "zho_Hans", "简体中文": "zho_Hans",
-            "英文": "eng_Latn", "English": "eng_Latn",
-            "日文": "jpn_Jpan", "Japanese": "jpn_Jpan", "日本語": "jpn_Jpan",
-        }
-        return old_map.get(display, "zho_Hant")
-    
-    def _on_start_click(self) -> None:
+    def _on_start_click(self):
         """Handle start/stop button click."""
         if self._is_running:
-            # Already running - trigger stop via callback
-            self.on_start(None)  # None signals stop
+            # Stop
+            self.on_start(None)
+        else:
+            # Start - gather settings
+            settings = self._gather_settings()
+            self.on_start(settings)
+
+    def _persist_ui_settings(self) -> None:
+        """Persist current UI selections without starting."""
+        if self._loading:
             return
-        
-        self._is_running = True
-        self.start_button.configure(state="disabled", text=t("loading"))
-        self.status_label.configure(text=t("status_loading_model"), text_color="#3B8ED0")
-        
-        # Convert mode display text to internal value
-        mode_display = self.mode_var.get()
-        if mode_display == t("mode_precise"):
-            mode_internal = "precise"
-        else:
-            mode_internal = "realtime"
-        
-        # Gather settings
-        settings = {
-            "mode": mode_internal,  # Language-independent: "precise" or "realtime"
-            "model": self._get_model_value(),
-            "language": self._get_language_value(),
-            "use_vad": self.vad_var.get(),
-            "vad_silence_ms": int(self.vad_silence_var.get()),
-            "min_duration": self.min_duration_var.get(),
-            "max_duration": self.max_duration_var.get(),
-            # Translation settings
-            "enable_translation": self.trans_var.get(),
-            "translation_engine": "google" if self.trans_engine_var.get() == t("engine_google") else "nllb",
-            "target_language": self._get_target_language_code(),
-        }
-        
-        # Save settings for next time
-        self._settings_mgr.update({
-            "mode": self.mode_var.get(),
-            "model": self.model_var.get(),
-            "language": self.lang_var.get(),
-            "vad_enabled": self.vad_var.get(),
-            "vad_silence_ms": int(self.vad_silence_var.get()),
-            "min_duration": self.min_duration_var.get(),
-            "enable_translation": self.trans_var.get(),
-            "translation_engine": self.trans_engine_var.get(),
-            "target_language": self.target_lang_var.get(),
-        })
-        self._settings_mgr.save()
-        
-        # Call callback (will hide window and start overlay)
-        self.after(100, lambda: self.on_start(settings))
+        self._gather_settings()
     
-    def show_running(self) -> None:
-        """Update UI to show running state."""
-        self.start_button.configure(text=t("stop_button"), state="normal")
-        self.status_label.configure(text=t("status_running"), text_color="#00AA00")
-        self._is_running = True
-    
-    def show_stopped(self) -> None:
-        """Update UI to show stopped state."""
-        self.start_button.configure(text=t("start_button"), state="normal")
-        self.status_label.configure(text=t("status_ready"), text_color="gray")
-        self._is_running = False
-    
-    def _load_saved_settings(self) -> None:
-        """Load saved settings from previous session."""
-        # Mode - handle both internal values and legacy Chinese values
-        saved_mode = self._settings_mgr.get("mode", "precise")
-        if saved_mode in ["precise", "精準"]:
-            display_mode = t("mode_precise")
-        elif saved_mode in ["realtime", "實時"]:
-            display_mode = t("mode_realtime")
-        else:
-            display_mode = t("mode_precise")  # Default
+    def _gather_settings(self) -> dict:
+        """Gather current settings into a dictionary."""
+        # Determine mode
+        is_precise = self.mode_precise_btn.isChecked()
+        mode = "precise" if is_precise else "realtime"
         
-        self.mode_var.set(display_mode)
-        self._on_mode_change(display_mode)
+        # Get model value
+        model_display = self.model_dropdown.currentText()
         
-        # Model (only for precise mode)
-        if saved_mode in ["precise", "精準"]:
-            saved_model = self._settings_mgr.get("model", "")
-            # Find the internal model ID from saved display name (may be in any language)
-            model_id = None
-            # Check if it's already an internal ID
-            if saved_model in self.MODEL_IDS:
-                model_id = saved_model
-            else:
-                # Try to find by partial match (the model name without language-specific suffix)
-                for mid in self.MODEL_IDS:
-                    if mid in saved_model.lower().replace("-", "").replace("_", ""):
-                        model_id = mid
-                        break
-                # Fallback: check by position in old saved values
-                if not model_id and "large-v3" in saved_model.lower() and "turbo" in saved_model.lower():
-                    model_id = "large-v3-turbo"
-                elif not model_id and "large" in saved_model.lower():
-                    model_id = "large-v3"
-                elif not model_id and "medium" in saved_model.lower():
-                    model_id = "medium"
-                else:
-                    model_id = "large-v3"  # Default
-            
-            # Get the translated display name for this model ID
-            for display_name, mid in self.MODELS:
-                if mid == model_id:
-                    self.model_var.set(display_name)
+        if is_precise:
+            # Precise mode: model dropdown shows Whisper models
+            model_id = "large-v3"
+            for display, mid in self.WHISPER_MODELS:
+                if display == model_display:
+                    model_id = mid
                     break
-        
-        # Language - convert saved language value to current translation
-        saved_lang = self._settings_mgr.get("language", "")
-        lang_code = None
-        
-        # The saved value could be:
-        # 1. An internal code like "en", "zh", "ja", None
-        # 2. An old display name like "自動偵測", "English", etc.
-        
-        # First, check if it's already an internal code
-        if saved_lang in [None, "", "None"]:
+            # Get language from lang dropdown
+            lang_display = self.lang_dropdown.currentText()
             lang_code = None
-        elif saved_lang in ["zh", "en", "ja", "ko", "yue", "es", "fr", "de"]:
-            lang_code = saved_lang
-        else:
-            # Try to find the language code from saved display name
-            for display_name, code in self.LANGUAGES:
-                if saved_lang == display_name:
-                    lang_code = code
+            for display, lcode in self.LANGUAGES:
+                if display == lang_display:
+                    lang_code = lcode
                     break
-            # Also check known old values
-            lang_mapping = {
-                "自動偵測": None, "自动检测": None, "Auto Detect": None,
-                "中文 (繁/簡)": "zh", "中文 (繁/简)": "zh", "Chinese (Trad/Simp)": "zh",
-                "英文": "en", "English": "en",
-                "日文": "ja", "Japanese": "ja",
-            }
-            if lang_code is None and saved_lang in lang_mapping:
-                lang_code = lang_mapping.get(saved_lang, None)
-        
-        # Set the translated display name
-        for display_name, code in self.LANGUAGES:
-            if code == lang_code:
-                self.lang_var.set(display_name)
-                break
-        
-        # VAD settings
-        self.vad_var.set(self._settings_mgr.get("vad_enabled", True))
-        self.vad_silence_var.set(self._settings_mgr.get("vad_silence_ms", 150))
-        self.min_duration_var.set(self._settings_mgr.get("min_duration", 5.0))
-        
-        # Translation settings
-        trans_enabled = self._settings_mgr.get("enable_translation", False)
-        self.trans_var.set(trans_enabled)
-        self._on_translation_change()  # Update label
-        
-        # Translation engine - convert to current translation
-        saved_engine = self._settings_mgr.get("translation_engine", "google")
-        if saved_engine in ["google", "Google 雲端", "Google 云端", "Google Cloud"]:
-            self.trans_engine_var.set(t("engine_google"))
-        elif saved_engine in ["nllb", "NLLB 本地", "NLLB Local"]:
-            self.trans_engine_var.set(t("engine_nllb"))
         else:
-            self.trans_engine_var.set(t("engine_google"))  # Default
+            # Realtime mode: model dropdown shows languages, model is auto-selected
+            lang_code = "zh"  # Default
+            for display, lcode in self.REALTIME_LANGUAGES:
+                if display == model_display:
+                    lang_code = lcode
+                    break
+            # Get model from language
+            model_id = self._get_streaming_model_for_language(lang_code)
         
-        # Target language - convert saved value to current translation
-        saved_target = self._settings_mgr.get("target_language", "zho_Hant")
-        # Map from any known value to translation key
-        target_key_map = {
-            # NLLB codes
-            "zho_Hant": "target_zh_TW", "zho_Hans": "target_zh_CN",
-            "eng_Latn": "target_en", "jpn_Jpan": "target_ja",
-            "kor_Hang": "target_ko", "spa_Latn": "target_es",
-            "fra_Latn": "target_fr", "deu_Latn": "target_de",
-            # Old Chinese display names
-            "繁體中文": "target_zh_TW", "繁体中文": "target_zh_TW",
-            "簡體中文": "target_zh_CN", "简体中文": "target_zh_CN",
-            "英文": "target_en", "English": "target_en",
-            "日文": "target_ja", "Japanese": "target_ja",
-            "韓文": "target_ko", "Korean": "target_ko",
-            "西班牙文": "target_es", "Spanish": "target_es",
-            "法文": "target_fr", "French": "target_fr",
-            "德文": "target_de", "German": "target_de",
+        # Get target language code
+        target_lang = self._get_target_language_code()
+        
+        # Get translation engine
+        engine_display = self.trans_engine_dropdown.currentText()
+        engine = "google" if t("engine_google") in engine_display else "nllb"
+        
+        settings = {
+            "mode": mode,
+            "model": model_id,
+            "language": lang_code,
+            "use_vad": self.vad_checkbox.isChecked(),
+            "vad_silence_ms": 100 if mode == "precise" else 500,
+            "enable_translation": self.trans_checkbox.isChecked(),
+            "translation_engine": engine,
+            "target_language": target_lang,
         }
-        target_key = target_key_map.get(saved_target, "target_zh_TW")
-        self.target_lang_var.set(t(target_key))
+        
+        # Save settings
+        self._save_settings(settings)
+        
+        return settings
+    
+    def _get_target_language_code(self) -> str:
+        """Get target language code from dropdown."""
+        target_display = self.target_lang_dropdown.currentText()
+        
+        # Map display names to NLLB codes
+        target_map = {
+            t("target_zh_TW"): "zho_Hant",
+            t("target_zh_CN"): "zho_Hans",
+            t("target_en"): "eng_Latn",
+            t("target_ja"): "jpn_Jpan",
+            t("target_ko"): "kor_Hang",
+            t("target_es"): "spa_Latn",
+            t("target_fr"): "fra_Latn",
+            t("target_de"): "deu_Latn",
+        }
+        
+        return target_map.get(target_display, "zho_Hant")
+    
+    def _save_settings(self, settings: dict):
+        """Save settings to file."""
+        sm = get_settings_manager()
+        for key, value in settings.items():
+            sm.set(key, value)
+        sm.save()
+    
+    def _load_saved_settings(self):
+        """Load saved settings from previous session."""
+        sm = get_settings_manager()
+        
+        # Mode (handle legacy Chinese values)
+        mode = sm.get("mode", "realtime")
+        if mode in ["實時", "realtime"]:
+            mode = "realtime"
+        elif mode in ["精準", "precise"]:
+            mode = "precise"
+        self._on_mode_change(mode)
+        
+        if mode == "precise":
+            # Load Whisper model
+            model_id = sm.get("model", "large-v3")
+            for display, mid in self.WHISPER_MODELS:
+                if mid == model_id:
+                    self.model_dropdown.setCurrentText(display)
+                    break
+            # Load language
+            lang_code = sm.get("language", None)
+            for display, lcode in self.LANGUAGES:
+                if lcode == lang_code:
+                    self.lang_dropdown.setCurrentText(display)
+                    break
+        else:
+            # Realtime mode: load language to model dropdown
+            lang_code = sm.get("language", "zh")
+            for display, lcode in self.REALTIME_LANGUAGES:
+                if lcode == lang_code:
+                    self.model_dropdown.setCurrentText(display)
+                    break
+        
+        # Translation
+        self.trans_checkbox.setChecked(sm.get("enable_translation", False))
+        
+        # Translation engine
+        engine = sm.get("translation_engine", "google")
+        if engine == "nllb":
+            self.trans_engine_dropdown.setCurrentText(t("engine_nllb"))
+        else:
+            self.trans_engine_dropdown.setCurrentText(t("engine_google"))
+        
+        # Target language
+        target = sm.get("target_language", "zho_Hant")
+        target_map = {
+            "zho_Hant": t("target_zh_TW"),
+            "zho_Hans": t("target_zh_CN"),
+            "eng_Latn": t("target_en"),
+            "jpn_Jpan": t("target_ja"),
+            "kor_Hang": t("target_ko"),
+            "spa_Latn": t("target_es"),
+            "fra_Latn": t("target_fr"),
+            "deu_Latn": t("target_de"),
+        }
+        if target in target_map:
+            self.target_lang_dropdown.setCurrentText(target_map[target])
+        
+        # VAD
+        self.vad_checkbox.setChecked(sm.get("use_vad", True))
+    
+    # === Public API ===
+    
+    def show_running(self):
+        """Update UI to show running state."""
+        self._is_running = True
+        self.start_button.setText("⏹ " + t("stop"))
+        self.start_button.setStyleSheet("""
+            QPushButton {
+                background-color: #E04040;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #F05050;
+            }
+        """)
+        self.status_label.setText(t("status_running"))
+        self.status_label.setStyleSheet("color: #3B8ED0;")
+    
+    def show_stopped(self):
+        """Update UI to show stopped state."""
+        self._is_running = False
+        self.start_button.setText("🎙 " + t("start"))
+        self.start_button.setStyleSheet("")  # Reset to default
+        self.status_label.setText(t("status_ready"))
+        self.status_label.setStyleSheet("color: #888888;")
+    
+    def _update_status_label(self, text: str, color: str):
+        """Update status label (thread-safe via signal)."""
+        self.status_label.setText(text)
+        self.status_label.setStyleSheet(f"color: {color};")
 
 
 # Quick test
 if __name__ == "__main__":
-    def on_start(settings):
-        print(f"Starting with settings: {settings}")
+    app = QApplication(sys.argv)
     
-    app = SettingsWindow(on_start=on_start)
-    app.mainloop()
+    def on_start(settings):
+        print(f"Start clicked: {settings}")
+    
+    window = SettingsWindow(on_start=on_start)
+    window.show()
+    
+    sys.exit(app.exec())

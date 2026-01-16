@@ -1,308 +1,308 @@
 """
-Model Manager Window - UI for managing model downloads.
+Model Manager Window using PyQt6.
 """
 
-import customtkinter as ctk
-from typing import Optional, Dict
+from PyQt6.QtWidgets import (
+    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QProgressBar, QScrollArea, QFrame, QMessageBox, QApplication
+)
+from PyQt6.QtCore import Qt, pyqtSignal, QThread
+from PyQt6.QtGui import QFont
+from typing import Optional, Dict, Callable
 import threading
+import os
+import subprocess
 
 from ..model_manager import ModelManager, ModelInfo, ModelType, ModelStatus
 from ..i18n import t
 
 
-class ModelRow(ctk.CTkFrame):
+class ModelRow(QFrame):
     """A single row displaying a model's status and actions."""
+    
+    progress_updated = pyqtSignal(float, str)
     
     def __init__(
         self,
-        master,
         model: ModelInfo,
         manager: ModelManager,
-        on_status_change: Optional[callable] = None,
+        on_status_change: Optional[Callable] = None,
     ):
-        super().__init__(master, fg_color="transparent")
+        super().__init__()
         
         self.model = model
         self.manager = manager
         self.on_status_change = on_status_change
         
+        self.setObjectName("model_row")
+        self.setStyleSheet("""
+            #model_row {
+                background-color: #333333;
+                border-radius: 8px;
+                padding: 10px;
+            }
+        """)
+        
         self._create_ui()
         self._update_status()
+        
+        # Connect signal
+        self.progress_updated.connect(self._update_progress_ui)
     
     def _create_ui(self):
         """Create the row UI."""
-        # Status icon
-        self.status_label = ctk.CTkLabel(
-            self,
-            text="⬇️",
-            width=30,
-            font=ctk.CTkFont(size=16),
-        )
-        self.status_label.pack(side="left", padx=(5, 5))
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 12, 15, 12)
+        layout.setSpacing(8)
         
-        # Model info
-        info_frame = ctk.CTkFrame(self, fg_color="transparent")
-        info_frame.pack(side="left", fill="x", expand=True, padx=5)
+        # Top row: name and size
+        top_row = QHBoxLayout()
         
-        self.name_label = ctk.CTkLabel(
-            info_frame,
-            text=t(self.model.name),  # Translate model name
-            font=ctk.CTkFont(size=13, weight="bold"),
-            anchor="w",
-        )
-        self.name_label.pack(anchor="w")
+        # Model name with emoji if recommended
+        name = t(self.model.name) if self.model.name.startswith("model_name_") else self.model.name
+        if "large-v3" in self.model.id and "turbo" not in self.model.id:
+            name = "⭐ " + name  # Recommended
         
-        self.desc_label = ctk.CTkLabel(
-            info_frame,
-            text=t(self.model.description),  # Translate description
-            font=ctk.CTkFont(size=11),
-            text_color="#888888",
-            anchor="w",
-        )
-        self.desc_label.pack(anchor="w")
+        self.name_label = QLabel(name)
+        self.name_label.setFont(QFont("", 12, QFont.Weight.Bold))
+        self.name_label.setStyleSheet("color: white;")
+        top_row.addWidget(self.name_label)
         
-        # Size label
-        self.size_label = ctk.CTkLabel(
-            self,
-            text=self.model.get_size_display(),
-            width=60,
-            font=ctk.CTkFont(size=12),
-            text_color="#aaaaaa",
-        )
-        self.size_label.pack(side="left", padx=10)
+        top_row.addStretch()
+        
+        # Size
+        size_label = QLabel(f"({self.model.get_size_display()})")
+        size_label.setStyleSheet("color: #888888;")
+        top_row.addWidget(size_label)
+        
+        layout.addLayout(top_row)
+        
+        # Description
+        desc = t(self.model.description) if self.model.description.startswith("model_desc_") else self.model.description
+        if desc:
+            desc_label = QLabel(desc)
+            desc_label.setStyleSheet("color: #aaaaaa; font-size: 12px;")
+            desc_label.setWordWrap(True)
+            layout.addWidget(desc_label)
         
         # Progress bar (hidden by default)
-        self.progress_bar = ctk.CTkProgressBar(self, width=100)
-        self.progress_bar.set(0)
-        # Don't pack yet
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                background-color: #444444;
+                border-radius: 4px;
+                height: 8px;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #3B8ED0;
+                border-radius: 4px;
+            }
+        """)
+        self.progress_bar.hide()
+        layout.addWidget(self.progress_bar)
         
-        # Progress text
-        self.progress_text = ctk.CTkLabel(
-            self,
-            text="",
-            width=120,
-            font=ctk.CTkFont(size=11),
-            text_color="#888888",
-        )
-        # Don't pack yet
+        # Status text
+        self.status_text = QLabel("")
+        self.status_text.setStyleSheet("color: #888888; font-size: 11px;")
+        self.status_text.hide()
+        layout.addWidget(self.status_text)
+
+        # Progress disclaimer
+        self.progress_note = QLabel(t("download_progress_note"))
+        self.progress_note.setStyleSheet("color: #666666; font-size: 10px;")
+        self.progress_note.hide()
+        layout.addWidget(self.progress_note)
         
         # Action button
-        self.action_button = ctk.CTkButton(
-            self,
-            text=t("download"),
-            width=70,
-            height=28,
-            command=self._on_action,
-        )
-        self.action_button.pack(side="right", padx=10)
+        button_row = QHBoxLayout()
+        button_row.addStretch()
+        
+        self.action_button = QPushButton(t("download"))
+        self.action_button.setMaximumWidth(120)
+        self.action_button.clicked.connect(self._on_action)
+        button_row.addWidget(self.action_button)
+        
+        layout.addLayout(button_row)
     
     def _update_status(self):
         """Update UI based on model status."""
-        try:
-            status = self.manager.get_status(self.model)
-            
-            if status == ModelStatus.DOWNLOADED:
-                self.status_label.configure(text="✅")
-                self.action_button.configure(text=t("delete"), fg_color="#8B0000", hover_color="#A52A2A", state="normal")
-                self.progress_bar.pack_forget()
-                self.progress_text.pack_forget()
-            elif status == ModelStatus.DOWNLOADING:
-                self.status_label.configure(text="⏳")
-                self.action_button.configure(text=t("downloading"), state="disabled")
-                self.progress_bar.pack(side="left", padx=5)
-                self.progress_text.pack(side="left", padx=5)
-            else:  # NOT_DOWNLOADED
-                self.status_label.configure(text="⬇️")
-                self.action_button.configure(
-                    text=t("download"),
-                    fg_color=["#3B8ED0", "#1F6AA5"],
-                    hover_color=["#36719F", "#144870"],
-                    state="normal",
-                )
-                self.progress_bar.pack_forget()
-                self.progress_text.pack_forget()
-        except Exception:
-            pass  # Widget may be destroyed
+        status = self.manager.get_status(self.model)
+        
+        if status == ModelStatus.DOWNLOADED:
+            self.action_button.setText(t("downloaded"))
+            self.action_button.setEnabled(False)
+            self.action_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #2a5a2a;
+                    color: #90EE90;
+                    border-radius: 6px;
+                }
+            """)
+            self.progress_bar.hide()
+            self.status_text.hide()
+            self.progress_note.hide()
+        elif status == ModelStatus.DOWNLOADING:
+            self.action_button.setText(t("downloading"))
+            self.action_button.setEnabled(False)
+            self.progress_bar.show()
+            self.status_text.show()
+            self.progress_note.show()
+        else:
+            self.action_button.setText(t("download"))
+            self.action_button.setEnabled(True)
+            self.action_button.setStyleSheet("")
+            self.progress_bar.hide()
+            self.status_text.hide()
+            self.progress_note.hide()
     
     def _on_action(self):
         """Handle action button click."""
         status = self.manager.get_status(self.model)
-        
-        if status == ModelStatus.DOWNLOADED:
-            # Delete
-            if self.manager.delete(self.model):
-                self._update_status()
-                if self.on_status_change:
-                    self.on_status_change()
-        elif status == ModelStatus.NOT_DOWNLOADED:
-            # Download
+        if status == ModelStatus.NOT_DOWNLOADED:
             self._start_download()
     
     def _start_download(self):
         """Start downloading the model."""
-        self._update_status()  # Show downloading state
+        self.action_button.setEnabled(False)
+        self.progress_bar.show()
+        self.progress_bar.setValue(0)
+        self.status_text.show()
+        self.progress_note.show()
         
         def progress_callback(model_id: str, progress: float, status_text: str):
-            # Update UI in main thread
-            self.after(0, lambda: self._update_progress(progress, status_text))
+            self.progress_updated.emit(progress, status_text)
         
+        # Start download in background
         self.manager.download(self.model, progress_callback)
-        self._update_status()
     
-    def _update_progress(self, progress: float, status_text: str):
-        """Update progress display."""
-        try:
-            if progress < 0:
-                # Error
-                self.progress_text.configure(text=status_text, text_color="red")
-                self.action_button.configure(state="normal", text=t("retry"))
-            elif progress >= 1.0:
-                # Complete
-                self._update_status()
-                if self.on_status_change:
-                    self.on_status_change()
-            else:
-                # In progress
-                self.progress_bar.set(progress)
-                self.progress_text.configure(text=status_text, text_color="#888888")
-        except Exception:
-            pass  # Widget may be destroyed
+    def _update_progress_ui(self, progress: float, status_text: str):
+        """Update progress display (called from signal)."""
+        self.progress_bar.setValue(int(progress * 100))
+        self.status_text.setText(status_text)
+        self.progress_note.show()
+        
+        if progress >= 1.0:
+            self._update_status()
+            if self.on_status_change:
+                self.on_status_change()
 
 
-class ModelManagerWindow(ctk.CTkToplevel):
+class ModelManagerWindow(QDialog):
     """Window for managing model downloads."""
     
-    def __init__(self, master=None):
-        super().__init__(master)
+    def __init__(self, parent=None):
+        super().__init__(parent)
         
-        self.title(t("model_manager_title"))
-        self.geometry("650x500")
-        self.resizable(True, True)
+        self.setWindowTitle(t("model_manager_title"))
+        self.setFixedSize(650, 550)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1a1a1a;
+            }
+            QLabel {
+                color: white;
+            }
+            QPushButton {
+                background-color: #3B8ED0;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+            }
+            QPushButton:hover {
+                background-color: #4AA3E0;
+            }
+            QPushButton:disabled {
+                background-color: #555555;
+                color: #888888;
+            }
+        """)
         
-        # Center on screen
-        self.update_idletasks()
-        x = (self.winfo_screenwidth() - 750) // 2
-        y = (self.winfo_screenheight() - 500) // 2
-        self.geometry(f"+{x}+{y}")
-        
-        # Model manager
         self.manager = ModelManager()
-        
-        # Model rows
-        self._model_rows: Dict[str, ModelRow] = {}
+        self.model_rows: Dict[str, ModelRow] = {}
         
         self._create_ui()
-        
-        # Handle window close
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
-    
-    def _on_close(self):
-        """Handle window close with confirmation if downloading."""
-        # Check if any model is currently downloading
-        for model in self.manager.get_all_models():
-            if self.manager.get_status(model) == ModelStatus.DOWNLOADING:
-                from tkinter import messagebox
-                result = messagebox.askyesno(
-                    t("download_in_progress"),
-                    t("download_cancel_confirm"),
-                    parent=self,
-                )
-                if not result:
-                    return  # User chose not to close
-                break
-        
-        try:
-            self.grab_release()
-        except Exception:
-            pass
-        self.destroy()
     
     def _create_ui(self):
         """Create the window UI."""
-        # Header
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", padx=20, pady=(20, 10))
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
-        ctk.CTkLabel(
-            header,
-            text="📦 " + t("model_manager_title"),
-            font=ctk.CTkFont(size=20, weight="bold"),
-        ).pack(side="left")
+        # Title
+        title = QLabel("📦 " + t("model_manager_title"))
+        title.setFont(QFont("", 16, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
         
-        # Storage path section
-        path_frame = ctk.CTkFrame(self, fg_color="#2a2a2a", corner_radius=8)
-        path_frame.pack(fill="x", padx=20, pady=(0, 15))
+        # Scroll area for models
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                background-color: #2a2a2a;
+                width: 10px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #555555;
+                border-radius: 5px;
+                min-height: 20px;
+            }
+        """)
         
-        ctk.CTkLabel(
-            path_frame,
-            text=t("model_path") + ":",
-            font=ctk.CTkFont(size=12),
-        ).pack(side="left", padx=(15, 5), pady=10)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(10)
         
-        self.path_label = ctk.CTkLabel(
-            path_frame,
-            text=str(self.manager.models_dir),
-            font=ctk.CTkFont(size=11),
-            text_color="#888888",
-            wraplength=350,
-        )
-        self.path_label.pack(side="left", fill="x", expand=True, padx=5, pady=10)
+        # Whisper models section
+        self._create_model_section(scroll_layout, t("whisper_models"), [ModelType.WHISPER])
         
-        # Open folder button
-        open_btn = ctk.CTkButton(
-            path_frame,
-            text=t("open_folder"),
-            width=70,
-            height=28,
-            font=ctk.CTkFont(size=12),
-            command=self._open_models_folder,
-        )
-        open_btn.pack(side="right", padx=10, pady=10)
+        # Translation models section
+        self._create_model_section(scroll_layout, t("translation_models"), [ModelType.NLLB])
         
-        # Scrollable content area
-        self.scroll_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scroll_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        # Streaming models section
+        self._create_model_section(scroll_layout, t("streaming_models"), [ModelType.SHERPA, ModelType.VOSK])
         
-        # Model sections
-        self._create_model_section(t("recognition_models"), ModelType.WHISPER)
-        self._create_model_section(t("realtime_models"), [ModelType.SHERPA, ModelType.VOSK])
-        self._create_model_section(t("translation_models"), ModelType.NLLB)
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_content)
+        layout.addWidget(scroll)
+        
+        # Footer buttons
+        footer = QHBoxLayout()
+        
+        open_folder_btn = QPushButton("📁 " + t("open_models_folder"))
+        open_folder_btn.clicked.connect(self._open_models_folder)
+        footer.addWidget(open_folder_btn)
+        
+        footer.addStretch()
+        
+        close_btn = QPushButton(t("close"))
+        close_btn.clicked.connect(self.close)
+        footer.addWidget(close_btn)
+        
+        layout.addLayout(footer)
     
-    def _create_model_section(self, title: str, model_types):
+    def _create_model_section(self, parent_layout, title: str, model_types):
         """Create a section for a group of models."""
         # Section title
-        section_header = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
-        section_header.pack(fill="x", pady=(15, 5))
+        section_title = QLabel(title)
+        section_title.setFont(QFont("", 13, QFont.Weight.Bold))
+        section_title.setStyleSheet("color: #888888; margin-top: 10px;")
+        parent_layout.addWidget(section_title)
         
-        ctk.CTkLabel(
-            section_header,
-            text=title,
-            font=ctk.CTkFont(size=14, weight="bold"),
-            anchor="w",
-        ).pack(side="left")
-        
-        # Model list
-        section_frame = ctk.CTkFrame(self.scroll_frame, fg_color="#2a2a2a", corner_radius=8)
-        section_frame.pack(fill="x", pady=(0, 5))
-        
-        # Get models for this section
-        if isinstance(model_types, list):
-            models = []
-            for mt in model_types:
-                models.extend(self.manager.get_models_by_type(mt))
-        else:
-            models = self.manager.get_models_by_type(model_types)
-        
-        # Create rows
-        for i, model in enumerate(models):
-            row = ModelRow(
-                section_frame,
-                model,
-                self.manager,
-                on_status_change=self._on_status_change,
-            )
-            row.pack(fill="x", padx=10, pady=(10 if i == 0 else 5, 10 if i == len(models) - 1 else 0))
-            self._model_rows[model.id] = row
+        # Model rows
+        for model in self.manager.get_all_models():
+            if model.model_type in model_types:
+                row = ModelRow(model, self.manager, self._on_status_change)
+                self.model_rows[model.id] = row
+                parent_layout.addWidget(row)
     
     def _on_status_change(self):
         """Called when any model's status changes."""
@@ -310,161 +310,192 @@ class ModelManagerWindow(ctk.CTkToplevel):
     
     def _open_models_folder(self):
         """Open the models folder in file explorer."""
-        import subprocess
-        import sys
+        models_dir = self.manager.models_dir
+        if not models_dir.exists():
+            models_dir.mkdir(parents=True, exist_ok=True)
         
-        folder = str(self.manager.models_dir)
-        if sys.platform == "win32":
-            subprocess.run(["explorer", folder])
-        elif sys.platform == "darwin":
-            subprocess.run(["open", folder])
+        # Open in file explorer
+        if os.name == 'nt':
+            os.startfile(str(models_dir))
         else:
-            subprocess.run(["xdg-open", folder])
+            subprocess.run(['xdg-open', str(models_dir)])
 
 
-class ModelDownloadDialog(ctk.CTkToplevel):
+class ModelDownloadDialog(QDialog):
     """Dialog for downloading missing models."""
     
-    def __init__(self, master, models_to_download: list, on_complete: Optional[callable] = None):
-        super().__init__(master)
-        
-        self.title(t("download_title"))
-        self.geometry("450x350")
-        self.resizable(False, False)
-        
-        # Center on screen
-        self.update_idletasks()
-        x = (self.winfo_screenwidth() - 450) // 2
-        y = (self.winfo_screenheight() - 350) // 2
-        self.geometry(f"+{x}+{y}")
+    progress_updated = pyqtSignal(str, float, str)
+    
+    def __init__(self, parent, models_to_download: list, on_complete: Optional[Callable] = None):
+        super().__init__(parent)
         
         self.models_to_download = models_to_download
         self.on_complete = on_complete
         self.manager = ModelManager()
         self._completed_count = 0
-        self._progress_labels = {}
-        self._progress_bars = {}
         self._destroyed = False
+        
+        self.setWindowTitle(t("download_title"))
+        # Dynamic height: base 200 + 140 per model
+        height = 200 + (len(models_to_download) * 140)
+        self.setFixedSize(500, min(height, 600))
+        self.setModal(True)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1a1a1a;
+            }
+            QLabel {
+                color: white;
+            }
+        """)
         
         self._create_ui()
         self._start_downloads()
         
-        # Make modal
-        self.grab_set()
-        self.focus_set()
-        
-        # Handle window close
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        # Connect signal
+        self.progress_updated.connect(self._update_progress)
     
     def _create_ui(self):
         """Create the dialog UI."""
-        # Header
-        ctk.CTkLabel(
-            self,
-            text=t("downloading_models"),
-            font=ctk.CTkFont(size=18, weight="bold"),
-        ).pack(pady=(20, 15))
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(20)
         
-        # Model list
+        # Title
+        title = QLabel("📥 " + t("downloading_models"))
+        title.setFont(QFont("", 16, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        # Model progress sections
+        self.progress_widgets = {}
+        
         for model in self.models_to_download:
-            frame = ctk.CTkFrame(self, fg_color="#2a2a2a", corner_radius=8)
-            frame.pack(fill="x", padx=20, pady=5)
+            frame = QFrame()
+            frame.setMinimumHeight(110)
+            frame.setStyleSheet("""
+                QFrame {
+                    background-color: #2a2a2a;
+                    border-radius: 8px;
+                }
+            """)
+            frame_layout = QVBoxLayout(frame)
+            frame_layout.setContentsMargins(15, 15, 15, 15)
+            frame_layout.setSpacing(8)
             
-            # Model name
-            ctk.CTkLabel(
-                frame,
-                text=f"{t(model.name)} ({model.get_size_display()})",
-                font=ctk.CTkFont(size=13, weight="bold"),
-            ).pack(anchor="w", padx=15, pady=(10, 5))
+            name = t(model.name) if model.name.startswith("model_name_") else model.name
+            name_label = QLabel(f"{name} ({model.get_size_display()})")
+            name_label.setStyleSheet("color: white; font-size: 14px; font-weight: bold;")
+            name_label.setMinimumHeight(22)
+            frame_layout.addWidget(name_label)
             
-            # Progress bar
-            progress_bar = ctk.CTkProgressBar(frame, width=380)
-            progress_bar.set(0)
-            progress_bar.pack(padx=15, pady=(0, 5))
-            self._progress_bars[model.id] = progress_bar
+            progress_bar = QProgressBar()
+            progress_bar.setMaximum(100)
+            progress_bar.setMinimumHeight(20)
+            progress_bar.setStyleSheet("""
+                QProgressBar {
+                    background-color: #444444;
+                    border-radius: 4px;
+                }
+                QProgressBar::chunk {
+                    background-color: #3B8ED0;
+                    border-radius: 4px;
+                }
+            """)
+            frame_layout.addWidget(progress_bar)
             
-            # Status label
-            status_label = ctk.CTkLabel(
-                frame,
-                text="等待中...",
-                font=ctk.CTkFont(size=11),
-                text_color="#888888",
-            )
-            status_label.pack(anchor="w", padx=15, pady=(0, 10))
-            self._progress_labels[model.id] = status_label
+            status_label = QLabel(t("download_waiting"))
+            status_label.setStyleSheet("color: #888888; font-size: 11px;")
+            status_label.setMinimumHeight(18)
+            frame_layout.addWidget(status_label)
+
+            progress_note = QLabel(t("download_progress_note"))
+            progress_note.setStyleSheet("color: #666666; font-size: 10px;")
+            progress_note.setMinimumHeight(16)
+            frame_layout.addWidget(progress_note)
+            
+            layout.addWidget(frame)
+            
+            self.progress_widgets[model.id] = {
+                "progress_bar": progress_bar,
+                "status_label": status_label,
+            }
         
-        # Close button (hidden until complete)
-        self.close_btn = ctk.CTkButton(
-            self,
-            text=t("downloading"),
-            width=100,
-            state="disabled",
-            command=self._on_close,
-        )
-        self.close_btn.pack(pady=(15, 20))
+        layout.addStretch()
+        
+        # Cancel button (enabled during download)
+        self.cancel_button = QPushButton(t("cancel_download"))
+        self.cancel_button.setEnabled(True)
+        self.cancel_button.clicked.connect(self._on_close)
+        self.cancel_button.setStyleSheet("""
+            QPushButton {
+                background-color: #555555;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 12px;
+            }
+            QPushButton:hover {
+                background-color: #666666;
+            }
+        """)
+        layout.addWidget(self.cancel_button)
     
     def _start_downloads(self):
         """Start downloading all models."""
         for model in self.models_to_download:
             def make_callback(m):
-                return lambda model_id, progress, status_text: self.after(
-                    0, lambda: self._update_progress(m.id, progress, status_text)
-                )
+                return lambda mid, prog, status: self.progress_updated.emit(m.id, prog, status)
             
             self.manager.download(model, make_callback(model))
     
     def _update_progress(self, model_id: str, progress: float, status_text: str):
         """Update progress for a model."""
-        # Check if dialog is still alive
-        if self._destroyed:
+        if self._destroyed or model_id not in self.progress_widgets:
             return
         
-        try:
-            if model_id in self._progress_bars:
-                if progress >= 0:
-                    self._progress_bars[model_id].set(progress)
-                
-                self._progress_labels[model_id].configure(
-                    text=status_text,
-                    text_color="red" if progress < 0 else ("#00AA00" if progress >= 1.0 else "#888888")
-                )
-                
-                # Check if completed
-                if progress >= 1.0:
-                    self._completed_count += 1
-                    self._check_all_complete()
-        except Exception:
-            pass  # Widget may be destroyed
+        widgets = self.progress_widgets[model_id]
+        widgets["progress_bar"].setValue(int(progress * 100))
+        widgets["status_label"].setText(status_text)
+        
+        if progress >= 1.0:
+            self._completed_count += 1
+            self._check_all_complete()
     
     def _check_all_complete(self):
         """Check if all downloads are complete."""
-        if self._destroyed:
-            return
-        try:
-            if self._completed_count >= len(self.models_to_download):
-                self.close_btn.configure(text=t("complete"), state="normal")
-        except Exception:
-            pass
+        if self._completed_count >= len(self.models_to_download):
+            self.cancel_button.setText(t("close"))
+            self.cancel_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #3B8ED0;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 12px;
+                }
+                QPushButton:hover {
+                    background-color: #4B9EE0;
+                }
+            """)
     
     def _on_close(self):
         """Handle dialog close."""
         # Check if any download is still in progress
         if self._completed_count < len(self.models_to_download):
-            from tkinter import messagebox
-            result = messagebox.askyesno(
+            result = QMessageBox.question(
+                self,
                 t("download_in_progress"),
                 t("download_cancel_confirm"),
-                parent=self,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
-            if not result:
-                return  # User chose not to close
+            if result != QMessageBox.StandardButton.Yes:
+                return
             
             # User confirmed cancel - delete partial downloaded models and force quit
-            import os
             import shutil
             
             for model in self.models_to_download:
-                # Delete from models directory
                 model_path = self.manager.get_model_path(model)
                 if model_path and model_path.exists():
                     try:
@@ -475,7 +506,7 @@ class ModelDownloadDialog(ctk.CTkToplevel):
                     except Exception:
                         pass
                 
-                # Also try to clear HuggingFace cache for this model
+                # Also try to clear HuggingFace cache
                 if model.hf_repo:
                     try:
                         hf_cache = os.path.expanduser("~/.cache/huggingface/hub")
@@ -488,28 +519,29 @@ class ModelDownloadDialog(ctk.CTkToplevel):
                     except Exception:
                         pass
             
-            # Force exit - os._exit stops all threads immediately
+            # Force exit
             os._exit(0)
-        
+
         self._destroyed = True
-        try:
-            self.grab_release()
-        except Exception:
-            pass
-        self.destroy()
-        if self.on_complete:
-            self.on_complete()
+        self.accept()
+    
+    def closeEvent(self, event):
+        """Handle window close."""
+        if self._destroyed:
+            event.accept()
+            return
+
+        event.ignore()
+        self._on_close()
 
 
 def show_model_manager(parent=None):
     """Show the model manager window."""
-    window = ModelManagerWindow(parent)
-    window.grab_set()  # Modal
-    window.focus_set()
-    return window
+    dialog = ModelManagerWindow(parent)
+    dialog.exec()
 
 
 def show_download_dialog(parent, models_to_download: list, on_complete=None):
     """Show the download dialog for specific models."""
     dialog = ModelDownloadDialog(parent, models_to_download, on_complete)
-    return dialog
+    dialog.exec()
