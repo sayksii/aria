@@ -21,6 +21,7 @@
 - 🔄 **Real-time Translation**: Translate transcriptions with Google Cloud or NLLB (local)
 - 🎨 **Customizable Overlay**: Draggable subtitle window with adjustable position
 - 🌐 **Multilingual UI**: English, Traditional Chinese, Simplified Chinese
+- 📦 **Embedded Python**: No separate Python installation required
 
 ## 💻 System Requirements
 
@@ -54,10 +55,10 @@ ARIA includes CUDA 12.1 runtime, so **you don't need to install CUDA separately*
 
 ### Choose Your Version
 
-| Version | Size | Description | Download |
-|---------|------|-------------|----------|
-| **Lite** | ~4 GB | No models included. Download models in-app. | [Google Drive](https://drive.google.com/file/d/1FPiiWBZitUC8xlTDanyROiQj7ZX_sEZL/view?usp=drive_link) |
-| **Full** | ~8.5 GB | All models pre-installed. Ready to use. | [Google Drive](https://drive.google.com/file/d/1JU9uh-U13C7_mWC3P5Q3cHziaV2fqEKa/view?usp=drive_link) |
+| Version | Size | Description | Google Drive | Baidu (Lite) / Quark (Full) |
+|---------|------|-------------|--------------|-----------------------------|
+| **Lite** | ~3 GB | No models included. Download models in-app. | [Google Drive](https://drive.google.com/file/d/1EzB8vh_uTX2TzQUa4BC1AuZ9M365CFZt/view?usp=sharing) | [Baidu](LINK_TBD) |
+| **Full** | ~7.6 GB | All models pre-installed. Ready to use. | [Google Drive](https://drive.google.com/file/d/1du2Pc8yxGdnwrtoDMFJGqjU4KBNzjN9R/view?usp=drive_link) | [Quark](LINK_TBD) |
 
 ### Included Models (Full Version)
 
@@ -72,7 +73,7 @@ ARIA includes CUDA 12.1 runtime, so **you don't need to install CUDA separately*
 
 1. Download and extract the ZIP file
 2. Double-click **`ARIA.vbs`** (silent) or **`ARIA.bat`** (with console)
-3. If using Lite version, click **Manage Models** to download required models
+3. If using **Lite** version, click **Manage Models** to download required models
 4. Select recognition mode and language
 5. Click **Start Subtitles**
 
@@ -90,7 +91,7 @@ ARIA includes CUDA 12.1 runtime, so **you don't need to install CUDA separately*
 | Language | Precise Mode | Realtime Mode |
 |----------|--------------|---------------|
 | Chinese (中文) | ✅ | ✅ (Sherpa-ONNX) |
-| English | ✅ | ✅ (Sherpa-ONNX) |
+| English | ✅ | ✅ (Sherpa-ONNX bilingual) |
 | Japanese (日本語) | ✅ | ✅ (Vosk) |
 | Korean (한국어) | ✅ | ❌ |
 | + 50 more | ✅ | ❌ |
@@ -110,6 +111,11 @@ ARIA/
 ├── ARIA.bat         # Launcher with console window
 └── ARIA.vbs         # Silent launcher (recommended)
 ```
+
+## 🖼️ Screenshots
+
+![image-20260117231941984](README.assets/image-20260117231941984.png)
+![image-20260117233035105](README.assets/image-20260117233035105.png)
 
 ## 🛠️ For Developers
 
@@ -138,7 +144,6 @@ This project is licensed under the **GNU General Public License v3.0** - see the
 - [Faster Whisper](https://github.com/SYSTRAN/faster-whisper)
 - [Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx)
 - [Vosk](https://alphacephei.com/vosk/)
-- [CustomTkinter](https://github.com/TomSchimansky/CustomTkinter)
 
 ## 📧 Contact
 
