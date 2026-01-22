@@ -185,21 +185,22 @@ class StreamingAudioBuffer:
                     for sample in audio:
                         self._pre_buffer.append(sample)
         
-        # Check max duration (outside lock) - only if VAD is disabled
-        if not self.use_vad:
-            buffer_duration = self._get_buffer_duration()
-            if buffer_duration >= self.max_segment_duration:
-                with self._lock:
-                    self._speech_started = False
-                    audio_to_process = self._flush_buffer_unlocked()
-                
-                if audio_to_process is not None:
-                    print(f"[Buffer] Max duration reached, triggering transcription ({buffer_duration:.1f}s)")
-                    threading.Thread(
-                        target=self.on_segment_ready,
-                        args=(audio_to_process,),
-                        daemon=True,
+        # Check max duration (outside lock)
+        buffer_duration = self._get_buffer_duration()
+        if buffer_duration >= self.max_segment_duration:
+            with self._lock:
+                self._speech_started = False
+                self._speech_start_time = None
+                audio_to_process = self._flush_buffer_unlocked()
+            
+            if audio_to_process is not None:
+                print(f"[Buffer] Max duration reached, triggering transcription ({buffer_duration:.1f}s)")
+                threading.Thread(
+                    target=self.on_segment_ready,
+                    args=(audio_to_process,),
+                    daemon=True,
                 ).start()
+            return  # Important: stop processing this chunk
         
         # Note: Removed interim results logic to reduce queue buildup
         # Transcription now only triggers on:

@@ -57,8 +57,8 @@ ARIA includes CUDA 12.1 runtime, so **you don't need to install CUDA separately*
 
 | Version | Size | Description | Google Drive | Baidu (Lite) / Quark (Full) |
 |---------|------|-------------|--------------|-----------------------------|
-| **Lite** | ~3 GB | No models included. Download models in-app. | [Google Drive](https://drive.google.com/file/d/1ktNC7n1m4aff82qGyF1xLB-NpzXV_PVF/view?usp=drive_link) | [Baidu](https://pan.baidu.com/s/1KkSlAv7X5yi90hTYuWZoPQ?pwd=j5ip) |
-| **Full** | ~7.6 GB | All models pre-installed. Ready to use. | [Google Drive](https://drive.google.com/file/d/1k_4DQhhi3LA1OqGeKLLw0mG5Rtuqlxjf/view?usp=drive_link) | [Baidu](https://pan.baidu.com/s/1yGc-pU6DdPFw8po60ubI3w?pwd=r2m6) |
+| **Lite** | ~3 GB | No models included. Download models in-app. | [Google Drive](https://drive.google.com/drive/folders/1rRQrj0IPX7rnQxA30WvmxhH-5c6fWZa8?usp=drive_link) | [Baidu](https://pan.baidu.com/s/1KkSlAv7X5yi90hTYuWZoPQ?pwd=j5ip) |
+| **Full** | ~7.6 GB | All models pre-installed. Ready to use. | [Google Drive](https://drive.google.com/drive/folders/1rdxunARIa3-68VV4xAKlbzh_dv_wI130?usp=drive_link) | [Baidu](https://pan.baidu.com/s/1yGc-pU6DdPFw8po60ubI3w?pwd=r2m6) |
 
 ### Included Models (Full Version)
 

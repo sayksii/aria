@@ -68,7 +68,7 @@ class RealtimePipeline:
         use_vad: bool = True,
         vad_silence_ms: int = 100,
         min_segment_duration: float = 1.0,
-        max_segment_duration: float = 10.0,
+        max_segment_duration: float = 5.0,
         # Translation settings
         enable_translation: bool = False,
         translation_engine: str = "google",

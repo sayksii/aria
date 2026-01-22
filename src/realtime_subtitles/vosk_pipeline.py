@@ -61,7 +61,7 @@ class StreamingPipeline:
         self,
         language: str = "zh",
         on_subtitle: Optional[Callable[[SubtitleEvent], None]] = None,
-        max_lines: int = 5,
+        max_lines: int = 4,
         # Translation settings
         enable_translation: bool = False,
         translation_engine: str = "google",

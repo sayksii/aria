@@ -112,7 +112,7 @@ class SherpaTranscriber:
         self._last_change_time = time.time()
         self._stable_timeout = 0.8  # seconds of stable text before marking as final
         self._text_finalized = False
-        self._max_segment_length = 200  # force new segment after this many characters
+        self._max_segment_length = 80  # force new segment after this many characters
         
         info(f"SherpaTranscriber: Initialized with language={language}")
     
