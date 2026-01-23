@@ -463,7 +463,12 @@ class SettingsWindow(QMainWindow):
         engine_row = QHBoxLayout()
         engine_row.addWidget(QLabel(t("engine") + ":"))
         self.trans_engine_dropdown = QComboBox()
-        self.trans_engine_dropdown.addItems([t("engine_google"), t("engine_nllb")])
+        self.trans_engine_dropdown.addItems([
+            t("engine_nllb"),
+            t("engine_google_free"),
+            t("engine_bing"),
+            t("engine_youdao"),
+        ])
         self.trans_engine_dropdown.currentTextChanged.connect(lambda _: self._persist_ui_settings())
         engine_row.addWidget(self.trans_engine_dropdown)
         engine_row.addStretch()
@@ -749,9 +754,15 @@ class SettingsWindow(QMainWindow):
         # Get target language code
         target_lang = self._get_target_language_code()
         
-        # Get translation engine
+        # Get translation engine - map display name to engine ID
         engine_display = self.trans_engine_dropdown.currentText()
-        engine = "google" if t("engine_google") in engine_display else "nllb"
+        engine_map = {
+            t("engine_nllb"): "nllb",
+            t("engine_google_free"): "google_free",
+            t("engine_bing"): "bing",
+            t("engine_youdao"): "youdao",
+        }
+        engine = engine_map.get(engine_display, "nllb")  # Default to NLLB
         
         settings = {
             "mode": mode,
@@ -830,12 +841,20 @@ class SettingsWindow(QMainWindow):
         # Translation
         self.trans_checkbox.setChecked(sm.get("enable_translation", False))
         
-        # Translation engine
-        engine = sm.get("translation_engine", "google")
-        if engine == "nllb":
-            self.trans_engine_dropdown.setCurrentText(t("engine_nllb"))
-        else:
-            self.trans_engine_dropdown.setCurrentText(t("engine_google"))
+        # Translation engine - map engine ID to display name
+        engine = sm.get("translation_engine", "nllb")
+        engine_reverse_map = {
+            "nllb": t("engine_nllb"),
+            "google_free": t("engine_google_free"),
+            "bing": t("engine_bing"),
+            "youdao": t("engine_youdao"),
+            # Legacy support
+            "google": t("engine_google_free"),
+            "baidu": t("engine_bing"),
+            "alibaba": t("engine_bing"),
+        }
+        display_name = engine_reverse_map.get(engine, t("engine_nllb"))
+        self.trans_engine_dropdown.setCurrentText(display_name)
         
         # Target language
         target = sm.get("target_language", "zho_Hant")

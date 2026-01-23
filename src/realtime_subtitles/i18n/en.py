@@ -103,6 +103,14 @@ TRANSLATIONS = {
     "target_fr": "French",
     "target_de": "German",
     
+    # Translation engines
+    "engine_google_free": "Google",
+    "engine_baidu": "Baidu Translate",
+    "engine_youdao": "Youdao (CN↔EN only)",
+    "engine_bing": "Bing",
+    "engine_alibaba": "Alibaba Translate",
+    "translation_disclaimer": "",
+    
     # Misc
     "yes": "Yes",
     "no": "No",
