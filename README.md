@@ -11,19 +11,19 @@
 
 **Universal Real-time AI Subtitles for Windows** - Capture and transcribe any audio playing on your system with AI-powered speech recognition.
 
-## ✨ Features
+## Features
 
-- 🎯 **Universal Audio Capture** - Works with any application (games, videos, calls, etc.)
-- 🚀 **Two Recognition Modes**:
+- **Universal Audio Capture** - Works with any application (games, videos, calls, etc.)
+- **Two Recognition Modes**:
   - **Precise Mode**: Uses Whisper for high-accuracy transcription
   - **Realtime Mode**: Uses Sherpa-ONNX/Vosk for word-by-word streaming
-- 🌍 **Multi-language Support**: Chinese, English, Japanese, Korean, and more
-- 🔄 **Real-time Translation**: Translate transcriptions with Google Cloud or NLLB (local)
-- 🎨 **Customizable Overlay**: Draggable subtitle window with adjustable position
-- 🌐 **Multilingual UI**: English, Traditional Chinese, Simplified Chinese
-- 📦 **Embedded Python**: No separate Python installation required
+- **Multi-language Support**: Chinese, English, Japanese, Korean, and more
+- **Real-time Translation**: Translate transcriptions with Google Cloud or NLLB (local)
+- **Customizable Overlay**: Draggable subtitle window with adjustable position
+- **Multilingual UI**: English, Traditional Chinese, Simplified Chinese
+- **Embedded Python**: No separate Python installation required
 
-## 💻 System Requirements
+## System Requirements
 
 ### Minimum Requirements
 
@@ -51,7 +51,7 @@ ARIA includes CUDA 12.1 runtime, so **you don't need to install CUDA separately*
 > 💡 **Tip**: Update your NVIDIA driver to the latest version for best performance.
 > Download from: https://www.nvidia.com/drivers
 
-## 📦 Download
+## Download
 
 ### Choose Your Version
 
@@ -69,7 +69,7 @@ ARIA includes CUDA 12.1 runtime, so **you don't need to install CUDA separately*
 | Vosk Japanese | Realtime | 1 GB | Japanese |
 | NLLB Translation | Translation | 1.2 GB | Many |
 
-## 🚀 Quick Start
+## Quick Start
 
 1. Download and extract the ZIP file
 2. Double-click **`ARIA.vbs`** (silent) or **`ARIA.bat`** (with console)
@@ -77,7 +77,7 @@ ARIA includes CUDA 12.1 runtime, so **you don't need to install CUDA separately*
 4. Select recognition mode and language
 5. Click **Start Subtitles**
 
-## ⚙️ Configuration
+## Configuration
 
 ### Recognition Modes
 
@@ -101,7 +101,7 @@ ARIA includes CUDA 12.1 runtime, so **you don't need to install CUDA separately*
 - **Google Cloud**: Fast, accurate, requires internet
 - **NLLB Local**: Offline, runs locally using Meta's NLLB model
 
-## 📁 Package Structure
+## Package Structure
 
 ```
 ARIA/
@@ -112,12 +112,12 @@ ARIA/
 └── ARIA.vbs         # Silent launcher (recommended)
 ```
 
-## 🖼️ Screenshots
+## Screenshots
 
 ![image-20260117231941984](README.assets/image-20260117231941984.png)
 ![image-20260117233035105](README.assets/image-20260117233035105.png)
 
-## 🛠️ For Developers
+## For Developers
 
 ```bash
 # Clone the repository
@@ -135,17 +135,16 @@ pip install -e .
 python -m realtime_subtitles.ui.app
 ```
 
-## 📝 License
+## License
 
 This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
-
+## Acknowledgments
 - [Faster Whisper](https://github.com/SYSTRAN/faster-whisper)
 - [Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx)
 - [Vosk](https://alphacephei.com/vosk/)
 
-## 📧 Contact
+## Contact
 
 - GitHub: [@sayksii](https://github.com/sayksii)
 - Email: mark42967151@gmail.com
