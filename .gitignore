@@ -80,3 +80,6 @@ python/
 
 # docs
 docs/
+
+# tests
+tests/
