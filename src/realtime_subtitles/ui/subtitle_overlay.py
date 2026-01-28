@@ -228,8 +228,8 @@ class SubtitleOverlay(QWidget):
             text: Subtitle text to display
             language: Language code (unused currently)
             translated_text: Translated text (optional)
-            committed_translation: Stable translation text (optional)
-            draft_translation: Unstable/draft translation text (optional)
+            committed_translation: Stable translation text (white)
+            draft_translation: Unstable/draft translation text (green)
         """
         self.subtitle_label.setPlainText(text)
         # Auto-scroll to bottom to show latest content
@@ -237,16 +237,34 @@ class SubtitleOverlay(QWidget):
             self.subtitle_label.verticalScrollBar().maximum()
         )
         
-        # Handle translation (support both simple and committed/draft modes)
-        final_translation = translated_text
+        # Handle translation with dual-color support (committed=white, draft=green)
         if committed_translation is not None or draft_translation is not None:
-             committed = committed_translation or ""
-             draft = draft_translation or ""
-             final_translation = committed + draft
-
-        if final_translation and final_translation.strip():
-            self.translation_label.setPlainText(final_translation)
-            # Auto-scroll to bottom
+            committed = committed_translation or ""
+            draft = draft_translation or ""
+            
+            # Build HTML with dual colors
+            html_parts = []
+            if committed:
+                # White text for committed (stable)
+                escaped_committed = committed.replace('\n', '<br>')
+                html_parts.append(f'<span style="color: white;">{escaped_committed}</span>')
+            if draft:
+                # Green text for draft (in progress)
+                escaped_draft = draft.replace('\n', '<br>')
+                html_parts.append(f'<span style="color: #90EE90;">{escaped_draft}</span>')
+            
+            if html_parts:
+                html_content = '<br>'.join(html_parts)
+                self.translation_label.setHtml(html_content)
+                self.translation_label.verticalScrollBar().setValue(
+                    self.translation_label.verticalScrollBar().maximum()
+                )
+                self.translation_label.show()
+            else:
+                self.translation_label.hide()
+        elif translated_text and translated_text.strip():
+            # Simple mode: just show translated text in default color
+            self.translation_label.setPlainText(translated_text)
             self.translation_label.verticalScrollBar().setValue(
                 self.translation_label.verticalScrollBar().maximum()
             )

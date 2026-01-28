@@ -9,6 +9,7 @@ from typing import Optional, Callable
 
 from .monitor import LiveCaptionsMonitor, CaptionEvent
 from .controller import LiveCaptionsController
+from .manager import TranslationStateManager
 from ..pipeline import SubtitleEvent
 from ..logger import info, debug, warning, error
 
@@ -101,6 +102,14 @@ class LiveCaptionsPipeline:
         self._running = False
         self._last_sent_text = ""
         
+        # Translation state manager for incremental translation
+        self._translation_manager = None
+        if self._translator:
+            self._translation_manager = TranslationStateManager(
+                translator=self._translator.translate
+            )
+            info("LiveCaptionsPipeline: TranslationStateManager initialized")
+        
         trans_status = "enabled" if self._translator else "disabled"
         info(f"LiveCaptionsPipeline: Initialized, translation={trans_status}")
     
@@ -126,16 +135,26 @@ class LiveCaptionsPipeline:
                 debug("LiveCaptionsPipeline: Duplicate text, skipping")
                 return
             
-            # Translate (if enabled)
+            # Use translation manager for incremental translation
+            committed_translation = None
+            draft_translation = None
             translated_text = None
-            if self._translator:
+            
+            if self._translation_manager:
+                try:
+                    state = self._translation_manager.process_text(caption.text)
+                    committed_translation = state.committed_text
+                    draft_translation = state.draft_text
+                except Exception as e:
+                    warning(f"LiveCaptionsPipeline: Translation manager failed: {e}")
+            elif self._translator:
+                # Fallback: direct translation without state management
                 try:
                     translated_text = self._translator.translate(caption.text)
                 except Exception as e:
                     warning(f"LiveCaptionsPipeline: Translation failed: {e}")
-                    # Don't return - still send the original text
             
-            # Create subtitle event
+            # Create subtitle event with dual-buffer translation fields
             event = SubtitleEvent(
                 text=caption.text,
                 language="auto",  # LiveCaptions auto-detects language
@@ -143,7 +162,9 @@ class LiveCaptionsPipeline:
                 timestamp=caption.timestamp,
                 is_partial=not caption.is_final,
                 translated_text=translated_text,
-                target_language=self._translator.target_language if self._translator else None
+                target_language=self._translator.target_language if self._translator else None,
+                committed_translation=committed_translation,
+                draft_translation=draft_translation
             )
             
             # Send
