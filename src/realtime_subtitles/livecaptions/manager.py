@@ -57,6 +57,9 @@ class TranslationStateManager:
     # Fuzzy matching threshold
     FUZZY_THRESHOLD = 0.65  # 65% similarity = match (Lowered for stability)
     
+    # Max draft size (sentences) to prevent huge translation requests
+    MAX_DRAFT_SENTENCES = 5
+    
     def __init__(
         self,
         translator: Optional[Callable[[str], str]] = None,
@@ -113,6 +116,19 @@ class TranslationStateManager:
         
         # Everything after committed = draft portion
         draft_sources = source_sentences[committed_end_index:]
+        
+        # FIX: Check if draft is too large (lost sync or huge update)
+        # If so, force-commit the excess without translation to catch up
+        if len(draft_sources) > self.MAX_DRAFT_SENTENCES:
+            skipped_count = len(draft_sources) - self.MAX_DRAFT_SENTENCES
+            skipped_part = draft_sources[:skipped_count]
+            draft_sources = draft_sources[skipped_count:]
+            
+            # Add skipped part to committed sources so we match them next time
+            # But DO NOT add to committed_paragraphs (hiding them from UI)
+            self._committed_sources.extend(skipped_part)
+            warning(f"TSM: Draft too large ({skipped_count+len(draft_sources)}), skipped {skipped_count} sentences.")
+            
         self._draft_sources = draft_sources
         
         if not draft_sources:
