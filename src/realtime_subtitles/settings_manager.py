@@ -13,12 +13,15 @@ class SettingsManager:
     """Manages saving and loading user settings."""
     
     DEFAULT_SETTINGS = {
-        "mode": "realtime",
-        "model": "sherpa-zh-en",
+        "mode": "precise",
+        "model": "large-v3",
         "language": None,
         "vad_enabled": True,
         "vad_silence_ms": 100,
         "min_duration": 100,
+        "enable_translation": True,
+        "translation_engine": "bing",
+        "target_language": "zho_Hans",
     }
     
     def __init__(self):
