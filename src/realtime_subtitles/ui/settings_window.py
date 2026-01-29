@@ -69,6 +69,7 @@ class SettingsWindow(QMainWindow):
             (t("lang_spanish"), "es"),
             (t("lang_french"), "fr"),
             (t("lang_german"), "de"),
+            (t("lang_russian"), "ru"),
         ]
     
     @property

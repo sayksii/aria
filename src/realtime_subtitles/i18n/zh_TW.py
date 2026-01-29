@@ -94,6 +94,7 @@ TRANSLATIONS = {
     "lang_spanish": "西班牙文",
     "lang_french": "法文",
     "lang_german": "德文",
+    "lang_russian": "俄文",
     
     # Target languages
     "target_zh_TW": "繁體中文",
